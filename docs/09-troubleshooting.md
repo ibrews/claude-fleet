@@ -1,5 +1,19 @@
 # Troubleshooting
 
+## Hooks fail with "node: command not found"
+
+**Symptom:** Stop hooks (Telegram notifications, KB sync) silently fail. Check `/tmp/` or hook logs for `node: command not found`.
+
+**Cause:** Headless sessions (`claude -p`) and hooks run in a minimal shell that doesn't load your profile. `node` isn't in the default PATH.
+
+**Fix:** Use the full path to `node` in all hook commands in `~/.claude/settings.json`:
+```json
+// Bad:  "command": "node $HOME/claude-fleet/notify-human.js"
+// Good: "command": "/opt/homebrew/bin/node $HOME/claude-fleet/notify-human.js"
+```
+
+Find your node path with `which node` and update all hook entries.
+
 ## Claude CLI not found via SSH
 
 **Symptom:** `claude: command not found` when running via SSH.

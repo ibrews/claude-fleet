@@ -54,10 +54,10 @@ CONTEXT="You have ${COUNT} pending inbox item(s) in ${INBOX_FILE}. Process these
 ${PENDING}
 
 After processing each item:
-1. Mark it done: change '- [ ]' to '- [x] (${TODAY})'
-2. Move it to the '## Done' section
-3. If the task came from another machine (@sender), add a confirmation to the sender's inbox
-4. Commit and push: cd $KB_DIR && git add inbox/ && git commit -m 'chore(inbox): processed pending items' && git push"
+1. If you can complete the task: mark it done (change '- [ ]' to '- [x] (${TODAY})'), move it to '## Done', and if it came from @sender, add a confirmation to the sender's inbox.
+2. If the task is too vague or ambiguous to act on: do NOT mark it done. Leave it as '- [ ]' in Pending. Write a clarification request to the sender's inbox explaining what you need to proceed. Example: '- [ ] [${TODAY}] @${MACHINE_NAME} → message: Re your task \"<original>\": I need clarification — <specific question>.'
+3. If the task is a question or decision that requires human judgment: do NOT mark it done. Leave it as '- [ ]' in Pending. Write back to the sender's inbox asking them to decide and re-submit.
+4. After all items are handled, commit and push: cd $KB_DIR && git add inbox/ && git commit -m 'chore(inbox): processed pending items' && git push"
 
 # Output JSON that Claude Code's hook system understands
 # - systemMessage: shown to the user in the terminal
