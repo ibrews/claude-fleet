@@ -56,7 +56,7 @@ Add a `CLAUDE.md` file to the root of your knowledge base. This is the first fil
 - **Sync rules** — how to pull/push, conflict resolution
 - **The `~/knowledge` rule** — always access via `~/knowledge/`, never `~/.claude/knowledge/`
 
-See the example in [templates/CLAUDE.md](../templates/CLAUDE.md) or the [Agile Lens KB](https://github.com/AgileLens/agile-lens-kb) for a production example.
+A starter template is included at [templates/CLAUDE.md](../templates/CLAUDE.md) — copy it into your KB root and customize it for your setup.
 
 ## Formatting and Style Rules
 

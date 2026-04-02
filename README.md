@@ -86,14 +86,23 @@ Create a private git repo and clone it to `~/knowledge` on every machine:
 git clone git@github.com:you/fleet-kb.git ~/knowledge
 ```
 
-Create inbox files:
+Set up the structure:
 
 ```bash
 cd ~/knowledge
+
+# Add the navigation guide (AI agents read this first)
+cp /path/to/claude-fleet/templates/CLAUDE.md .
+
+# Create inboxes
 mkdir inbox
 cp /path/to/claude-fleet/templates/inbox/example-machine.md inbox/alpha.md
 cp /path/to/claude-fleet/templates/inbox/example-machine.md inbox/beta.md
-git add inbox/ && git commit -m "init: inbox files" && git push
+
+# Create daily log and decision folders
+mkdir -p daily decisions projects
+
+git add . && git commit -m "init: KB structure" && git push
 ```
 
 Optionally, create a compatibility symlink (some tools expect `~/.claude/knowledge`):
