@@ -2,6 +2,10 @@
 
 Hooks are the mechanism that makes the fleet work autonomously. Claude Code supports hooks that run shell commands at specific lifecycle points.
 
+## Path Convention
+
+Fleet scripts live in `~/claude-fleet/`. The only file that belongs in `~/.claude/` is `settings.json` (Claude Code requires it there). Never put scripts, env files, or the KB inside `~/.claude/` — it causes unnecessary permission prompts.
+
 ## Hook Types Used
 
 ### SessionStart — Inbox Check
@@ -17,7 +21,7 @@ When Claude starts a session, this hook pulls the knowledge base and checks for 
       {
         "hooks": [{
           "type": "command",
-          "command": "$HOME/.claude/kb-inbox-check.sh",
+          "command": "$HOME/claude-fleet/kb-inbox-check.sh",
           "timeout": 30,
           "statusMessage": "Checking inbox..."
         }]
@@ -53,7 +57,7 @@ When Claude finishes, this hook commits and pushes any changes to the knowledge 
     {
       "hooks": [{
         "type": "command",
-        "command": "$HOME/.claude/kb-session-end.sh",
+        "command": "$HOME/claude-fleet/kb-session-end.sh",
         "timeout": 30
       }]
     }
@@ -71,7 +75,7 @@ Also on Stop, sends a notification to Telegram:
     {
       "hooks": [{
         "type": "command",
-        "command": "node $HOME/.claude/notify-human.js",
+        "command": "node $HOME/claude-fleet/notify-human.js",
         "timeout": 10
       }]
     }
@@ -86,7 +90,7 @@ Multiple Stop hooks run in sequence — the KB sync runs first, then the notific
 On Windows, `bash` in the hook command may resolve to WSL's bash (which has a different filesystem). Two solutions:
 
 1. **Use `node` instead of `bash`** for hooks. The `notify-human.js` script is designed for this.
-2. **Use Git Bash explicitly**: `"command": "C:/Program Files/Git/bin/bash.exe $USERPROFILE/.claude/kb-inbox-check.sh"`
+2. **Use Git Bash explicitly**: `"command": "C:/Program Files/Git/bin/bash.exe $USERPROFILE/claude-fleet/kb-inbox-check.sh"`
 
 For the `$HOME` or `$USERPROFILE` variable in hook commands, Claude Code expands these before execution on all platforms.
 

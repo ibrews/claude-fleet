@@ -89,4 +89,4 @@ For autonomous fleet operation, you'll want Claude to run without permission pro
 }
 ```
 
-Add this to `~/.claude/settings.json` on each machine. The `deny` list prevents catastrophic commands while allowing everything else.
+Add this to `~/.claude/settings.json` on each machine (the one file that must live in `~/.claude/`). The `deny` list prevents catastrophic commands while allowing everything else.

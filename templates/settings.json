@@ -12,7 +12,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/kb-inbox-check.sh",
+            "command": "$HOME/claude-fleet/kb-inbox-check.sh",
             "timeout": 30,
             "statusMessage": "Checking inbox..."
           }
@@ -24,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.claude/kb-session-end.sh",
+            "command": "$HOME/claude-fleet/kb-session-end.sh",
             "timeout": 30,
             "statusMessage": "Syncing knowledge base..."
           }
@@ -34,7 +34,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node $HOME/.claude/notify-human.js",
+            "command": "node $HOME/claude-fleet/notify-human.js",
             "timeout": 10,
             "statusMessage": "Sending notification..."
           }

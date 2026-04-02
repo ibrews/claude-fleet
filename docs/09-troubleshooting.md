@@ -20,7 +20,7 @@ which claude
 
 ## Windows: bash resolves to WSL
 
-**Symptom:** Hook scripts can't find files at expected paths. Errors like `/root/.claude/...: No such file or directory`.
+**Symptom:** Hook scripts can't find files at expected paths. Errors like `/root/claude-fleet/...: No such file or directory`.
 
 **Cause:** `bash` on Windows may point to `C:\Windows\System32\bash.exe` (WSL), which has a completely different filesystem.
 
@@ -63,7 +63,7 @@ git checkout --theirs . && git add -A && git rebase --continue
 **Checklist:**
 1. Verify token/chat ID: `curl -s "https://api.telegram.org/bot<TOKEN>/getMe"` — should return bot info
 2. Test send: `curl -s -X POST "https://api.telegram.org/bot<TOKEN>/sendMessage" -d chat_id="<ID>" -d text="test"`
-3. Check the `.env` file path matches what the script expects (`~/.claude/fleet.env` or `~/.ccgram/.env`)
+3. Check the `.env` file path matches what the script expects (`~/claude-fleet/fleet.env` or `~/.ccgram/.env`)
 4. On Windows, verify `node` is in PATH: `where node`
 
 ## Machine hits max turns (15) without finishing

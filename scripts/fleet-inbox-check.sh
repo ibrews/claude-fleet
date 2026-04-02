@@ -10,7 +10,7 @@
 
 set -eo pipefail
 
-CLAUDE_PROMPT='Find the knowledge base git repo (check ~/.claude/knowledge, ~/knowledge, or $HOME/knowledge). Pull latest with git pull origin master. Then read your inbox file in the inbox/ folder and act on any pending items. Mark completed items as done, commit and push changes.'
+CLAUDE_PROMPT='Pull the knowledge base at ~/knowledge with git pull origin master. Then read your inbox file in the inbox/ folder and act on any pending items. Mark completed items as done, commit and push changes.'
 
 # ── Configure your fleet ─────────────────────────────────────────────
 # Space-separated list of machine names (must match SSH config or Tailscale hostnames)
@@ -41,7 +41,7 @@ get_claude_cmd() {
 # Telegram config (optional — reads from .env file)
 TELEGRAM_BOT_TOKEN=""
 TELEGRAM_CHAT_ID=""
-for envfile in "$HOME/.claude/fleet.env" "$HOME/.ccgram/.env"; do
+for envfile in "$HOME/claude-fleet/fleet.env" "$HOME/.claude/fleet.env" "$HOME/.ccgram/.env"; do
   if [ -f "$envfile" ]; then
     TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-$(grep TELEGRAM_BOT_TOKEN "$envfile" 2>/dev/null | cut -d= -f2)}"
     TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID:-$(grep TELEGRAM_CHAT_ID "$envfile" 2>/dev/null | cut -d= -f2)}"
@@ -67,7 +67,7 @@ fi
 
 # Push latest KB first so all machines get current inbox state
 echo "[prep] Syncing knowledge base..."
-KB_DIR="${HOME}/.claude/knowledge"
+KB_DIR="${HOME}/knowledge"
 if [ -d "$KB_DIR/.git" ]; then
   cd "$KB_DIR"
   git add -A && git diff --cached --quiet || git commit -m "chore(inbox): pre-trigger sync" 2>/dev/null

@@ -11,7 +11,8 @@
 set -euo pipefail
 
 # Where your shared knowledge base is cloned
-KB_DIR="${KB_DIR:-$HOME/.claude/knowledge}"
+# Use ~/knowledge — never access ~/.claude/ directly (causes permission prompts)
+KB_DIR="${KB_DIR:-$HOME/knowledge}"
 
 # Machine name — used to find the right inbox file
 # Override with KB_MACHINE_NAME env var, or it auto-detects from hostname

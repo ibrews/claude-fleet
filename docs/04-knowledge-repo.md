@@ -15,22 +15,29 @@ gh repo create fleet-kb --private
 
 ```
 fleet-kb/
+├── CLAUDE.md           # Navigation guide for AI agents (see below)
 ├── inbox/              # Inter-machine messaging
 │   ├── README.md       # Protocol documentation
 │   ├── alpha.md        # Alpha's inbox
 │   ├── beta.md         # Beta's inbox
 │   └── gamma.md        # Gamma's inbox
 ├── fleet/              # Fleet configuration
-│   ├── roster.md       # Machine inventory
-│   └── fleet-inbox-check.sh
+│   └── roster.md       # Machine inventory
 └── daily/              # Auto-generated session logs (optional)
-    └── 2024-01-15.md
+    └── 2024-01-15-alpha.md
 ```
 
 ## Clone on Every Machine
 
+**Always clone to `~/knowledge`** — never into `~/.claude/`:
+
 ```bash
-git clone git@github.com:you/fleet-kb.git ~/.claude/knowledge
+git clone git@github.com:you/fleet-kb.git ~/knowledge
+```
+
+Optionally create a compatibility symlink:
+```bash
+ln -s ~/knowledge ~/.claude/knowledge
 ```
 
 On Windows:
@@ -38,6 +45,31 @@ On Windows:
 git clone git@github.com:you/fleet-kb.git %USERPROFILE%\knowledge
 mklink /J %USERPROFILE%\.claude\knowledge %USERPROFILE%\knowledge
 ```
+
+## CLAUDE.md Navigation Guide
+
+Add a `CLAUDE.md` file to the root of your knowledge base. This is the first file AI agents read — it tells them how to find, use, and update context. A good navigation guide includes:
+
+- **Folder structure** — what each directory contains
+- **Routing table** — "if the task involves X, look in Y"
+- **Writing rules** — frontmatter requirements, file naming conventions
+- **Sync rules** — how to pull/push, conflict resolution
+- **The `~/knowledge` rule** — always access via `~/knowledge/`, never `~/.claude/knowledge/`
+
+See the example in [templates/CLAUDE.md](../templates/CLAUDE.md) or the [Agile Lens KB](https://github.com/AgileLens/agile-lens-kb) for a production example.
+
+## Formatting and Style Rules
+
+For consistency across multiple machines and agents writing to the same KB:
+
+- **Frontmatter:** Every file should have YAML frontmatter with at least `title`, `updated`, and `tags`
+- **Date format:** `YYYY-MM-DD` everywhere
+- **File naming:** Lowercase, hyphen-separated (e.g., `auth-middleware-decision.md`)
+- **One topic per file.** Prefer creating a new file over appending to a catch-all
+- **Daily logs:** Use machine-specific filenames: `daily/YYYY-MM-DD-<machine>.md` to prevent merge conflicts
+- **Cross-references:** Use `[[wiki-links]]` to connect related files
+
+Consider adding a `STYLE_GUIDE.md` to your KB with your specific conventions. All agents and humans contributing to the KB should follow it.
 
 ## Git Authentication
 
@@ -76,7 +108,7 @@ Pull the KB every 15 minutes so machines stay current even without active Claude
 
 ```bash
 # macOS/Linux crontab
-*/15 * * * * cd ~/.claude/knowledge && git pull --rebase origin master >/dev/null 2>&1
+*/15 * * * * cd ~/knowledge && git pull --rebase origin master >/dev/null 2>&1
 ```
 
 ## Conflict Resolution

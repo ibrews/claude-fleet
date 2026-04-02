@@ -9,7 +9,8 @@
 
 set -euo pipefail
 
-KB_DIR="${KB_DIR:-$HOME/.claude/knowledge}"
+# Use ~/knowledge — never access ~/.claude/ directly (causes permission prompts)
+KB_DIR="${KB_DIR:-$HOME/knowledge}"
 MACHINE_NAME="${KB_MACHINE_NAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
 TODAY=$(date +%Y-%m-%d)
 

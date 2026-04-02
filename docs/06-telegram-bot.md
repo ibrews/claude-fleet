@@ -22,7 +22,7 @@ Status icons:
 
 See [telegram/setup-bot.md](../telegram/setup-bot.md) for the step-by-step bot creation guide.
 
-Once you have your token and chat ID, create `~/.claude/fleet.env` on each machine:
+Once you have your token and chat ID, create `~/claude-fleet/fleet.env` on each machine:
 
 ```bash
 TELEGRAM_BOT_TOKEN=your_token_here

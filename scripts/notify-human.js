@@ -10,10 +10,10 @@
 // Zero npm dependencies — uses only Node.js builtins.
 //
 // Install:
-//   1. Copy to ~/.claude/notify-human.js
-//   2. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in ~/.claude/fleet.env
+//   1. Copy to ~/claude-fleet/notify-human.js
+//   2. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in ~/claude-fleet/fleet.env
 //   3. Add to ~/.claude/settings.json under hooks.Stop:
-//      { "type": "command", "command": "node $HOME/.claude/notify-human.js", "timeout": 10 }
+//      { "type": "command", "command": "node $HOME/claude-fleet/notify-human.js", "timeout": 10 }
 
 const https = require('https');
 const os = require('os');
@@ -28,7 +28,8 @@ function loadConfig() {
   if (!token || !chatId) {
     // Try loading from fleet.env or .ccgram/.env
     const envPaths = [
-      path.join(os.homedir(), '.claude', 'fleet.env'),
+      path.join(os.homedir(), 'claude-fleet', 'fleet.env'),
+      path.join(os.homedir(), '.claude', 'fleet.env'),  // legacy fallback
       path.join(os.homedir(), '.ccgram', '.env'),
     ];
     for (const p of envPaths) {

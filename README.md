@@ -33,6 +33,16 @@ Coordinate a fleet of computers each running [Claude Code](https://docs.anthropi
                    📱 You
 ```
 
+## Important: Stay Out of `~/.claude/`
+
+The `~/.claude/` directory is Claude Code's internal config directory. Accessing it directly triggers permission prompts and can interfere with Claude's operation.
+
+**Rules:**
+- Clone the knowledge base to **`~/knowledge`**, not `~/.claude/knowledge`
+- Install fleet scripts to **`~/claude-fleet/`**, not `~/.claude/`
+- The only file that *must* live in `~/.claude/` is **`settings.json`** (Claude Code requires it there)
+- If you need a symlink for compatibility, create `~/.claude/knowledge → ~/knowledge` — but never access the KB through the symlink
+
 ## What This Does
 
 - **Each machine runs Claude Code independently.** Your laptop, your desktop, your servers — each one can work autonomously.
@@ -69,24 +79,29 @@ See [docs/02-tailscale-setup.md](docs/02-tailscale-setup.md) for details.
 
 ### 2. Create the shared knowledge base
 
-Create a private git repo and clone it on every machine:
+Create a private git repo and clone it to `~/knowledge` on every machine:
 
 ```bash
 # On each machine
-git clone git@github.com:you/fleet-kb.git ~/.claude/knowledge
+git clone git@github.com:you/fleet-kb.git ~/knowledge
 ```
 
 Create inbox files:
 
 ```bash
-cd ~/.claude/knowledge
+cd ~/knowledge
 mkdir inbox
 cp /path/to/claude-fleet/templates/inbox/example-machine.md inbox/alpha.md
 cp /path/to/claude-fleet/templates/inbox/example-machine.md inbox/beta.md
 git add inbox/ && git commit -m "init: inbox files" && git push
 ```
 
-See [docs/04-knowledge-repo.md](docs/04-knowledge-repo.md) for the full setup.
+Optionally, create a compatibility symlink (some tools expect `~/.claude/knowledge`):
+```bash
+ln -s ~/knowledge ~/.claude/knowledge
+```
+
+See [docs/04-knowledge-repo.md](docs/04-knowledge-repo.md) for the full setup, including KB structure, CLAUDE.md navigation guide, and formatting rules.
 
 ### 3. Install Claude Code on every machine
 
@@ -106,30 +121,33 @@ See [docs/03-claude-code-install.md](docs/03-claude-code-install.md) for platfor
 
 ### 4. Install the hooks
 
-Copy the scripts to each machine:
+Copy the scripts to `~/claude-fleet/` on each machine:
 
 ```bash
-cp scripts/kb-inbox-check.sh ~/.claude/
-cp scripts/kb-session-end.sh ~/.claude/
-cp scripts/notify-human.js ~/.claude/
-chmod +x ~/.claude/kb-inbox-check.sh ~/.claude/kb-session-end.sh
+mkdir -p ~/claude-fleet
+cp scripts/kb-inbox-check.sh ~/claude-fleet/
+cp scripts/kb-session-end.sh ~/claude-fleet/
+cp scripts/notify-human.js ~/claude-fleet/
+chmod +x ~/claude-fleet/kb-inbox-check.sh ~/claude-fleet/kb-session-end.sh
 ```
 
-Add to `~/.claude/settings.json` (see [templates/settings.json](templates/settings.json) for the full structure):
+Add to `~/.claude/settings.json` (the one file that must live in `~/.claude/`):
 
 ```json
 {
   "hooks": {
     "SessionStart": [
-      { "hooks": [{ "type": "command", "command": "$HOME/.claude/kb-inbox-check.sh", "timeout": 30 }] }
+      { "hooks": [{ "type": "command", "command": "$HOME/claude-fleet/kb-inbox-check.sh", "timeout": 30 }] }
     ],
     "Stop": [
-      { "hooks": [{ "type": "command", "command": "$HOME/.claude/kb-session-end.sh", "timeout": 30 }] },
-      { "hooks": [{ "type": "command", "command": "node $HOME/.claude/notify-human.js", "timeout": 10 }] }
+      { "hooks": [{ "type": "command", "command": "$HOME/claude-fleet/kb-session-end.sh", "timeout": 30 }] },
+      { "hooks": [{ "type": "command", "command": "node $HOME/claude-fleet/notify-human.js", "timeout": 10 }] }
     ]
   }
 }
 ```
+
+See [templates/settings.json](templates/settings.json) for the full structure including permissions.
 
 ### 5. Configure the fleet trigger
 
@@ -139,7 +157,7 @@ Edit `scripts/fleet-inbox-check.sh` — add your machines to `ALL_MACHINES` and 
 
 ```bash
 # Send a test message to one of your machines
-cd ~/.claude/knowledge
+cd ~/knowledge
 echo '- [ ] [2024-01-01 12:00] @alpha → check: Are you alive? Reply to my inbox.' >> inbox/beta.md
 git add inbox/ && git commit -m "test: ping beta" && git push
 

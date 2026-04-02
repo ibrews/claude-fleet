@@ -26,20 +26,20 @@ ssh desktop
 gh repo create my-fleet-kb --private
 
 # On laptop
-git clone git@github.com:you/my-fleet-kb.git ~/.claude/knowledge
-cd ~/.claude/knowledge
+git clone git@github.com:you/my-fleet-kb.git ~/knowledge
+cd ~/knowledge
 mkdir inbox
 echo '# Inbox: laptop\n\n## Pending\n\n## Done' > inbox/laptop.md
 echo '# Inbox: desktop\n\n## Pending\n\n## Done' > inbox/desktop.md
 git add . && git commit -m "init" && git push
 
 # On desktop
-git clone git@github.com:you/my-fleet-kb.git ~/.claude/knowledge
+git clone git@github.com:you/my-fleet-kb.git ~/knowledge
 ```
 
 ### 3. Install hooks on both machines
 
-Copy `kb-inbox-check.sh`, `kb-session-end.sh`, and `notify-human.js` to `~/.claude/` on each machine. Update `settings.json` per the template.
+Copy `kb-inbox-check.sh`, `kb-session-end.sh`, and `notify-human.js` to `~/claude-fleet/` on each machine. Update `~/.claude/settings.json` per the template.
 
 ### 4. Configure the fleet trigger
 
@@ -59,7 +59,7 @@ get_host() {
 
 ```bash
 # From laptop — send a task to desktop
-cd ~/.claude/knowledge
+cd ~/knowledge
 echo '- [ ] [2024-01-15 14:00] @laptop → check: What is your hostname and uptime?' >> inbox/desktop.md
 git add . && git commit -m "test: ping desktop" && git push
 

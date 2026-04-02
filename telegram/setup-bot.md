@@ -26,7 +26,7 @@ You should receive the message in Telegram.
 
 ## 4. Store Credentials
 
-Create `~/.claude/fleet.env`:
+Create `~/claude-fleet/fleet.env`:
 
 ```bash
 TELEGRAM_BOT_TOKEN=your_token_here

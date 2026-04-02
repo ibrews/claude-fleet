@@ -61,7 +61,7 @@ Claude then:
 From any machine:
 
 ```bash
-cd ~/.claude/knowledge
+cd ~/knowledge
 
 # Add a task to beta's inbox
 cat >> inbox/beta.md << 'EOF'
