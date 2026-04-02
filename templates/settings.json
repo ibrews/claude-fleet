@@ -1,0 +1,45 @@
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(sudo rm -rf *)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/kb-inbox-check.sh",
+            "timeout": 30,
+            "statusMessage": "Checking inbox..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/kb-session-end.sh",
+            "timeout": 30,
+            "statusMessage": "Syncing knowledge base..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node $HOME/.claude/notify-human.js",
+            "timeout": 10,
+            "statusMessage": "Sending notification..."
+          }
+        ]
+      }
+    ]
+  }
+}
