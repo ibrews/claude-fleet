@@ -170,6 +170,45 @@
   .dice-btn:hover { color: var(--accent); border-color: var(--accent); transform: rotate(15deg); }
   .dice-btn:active { transform: rotate(360deg); transition: transform 0.3s; }
 
+  /* ── Mobile Responsive ── */
+  @media (max-width: 600px) {
+    .header h1 { font-size: 36px; }
+    .header .tagline { font-size: 13px; }
+    .game-container { padding: 12px; }
+    .card-body { padding: 14px; }
+    .card-header { padding: 12px 14px; flex-wrap: wrap; gap: 8px; }
+    .card-header h2 { font-size: 14px; }
+
+    /* Setup: stack form fields */
+    .setup-section label { font-size: 11px; }
+
+    /* Machine builder: single column */
+    .machine-builder { grid-template-columns: 1fr; }
+
+    /* Fleet grid: single column */
+    .fleet-grid { grid-template-columns: 1fr; }
+
+    /* Dispatch bar: stack vertically */
+    .dispatch-bar { flex-direction: column; }
+    .dispatch-bar select { width: 100%; }
+    .dispatch-bar input { width: 100%; }
+
+    /* Rank bar: stack */
+    .rank-bar { flex-direction: column; gap: 8px; text-align: center; }
+    .rank-progress { width: 100%; }
+
+    /* Stats: wrap */
+    .concept-tooltip { font-size: 11px; }
+    .terminal { font-size: 11px; padding: 10px; }
+    .celebration-card { padding: 30px 20px; }
+    .celebration-card h2 { font-size: 28px; }
+    .celebration-card .rank-big { font-size: 60px; }
+    .celeb-stats { flex-wrap: wrap; gap: 16px; }
+
+    /* Inbox panel: stack */
+    .inbox-panel { grid-template-columns: 1fr; }
+  }
+
   /* ── Footer ── */
   .footer { text-align: center; padding: 40px 0; color: var(--dim); font-size: 13px; }
   .footer a { color: var(--accent); text-decoration: none; }
@@ -192,7 +231,7 @@
   <div class="footer">
     Built to teach <a href="https://github.com/ibrews/claude-fleet" target="_blank">claude-fleet</a> — the open-source system for coordinating Claude Code across multiple machines.<br>
     <a href="https://github.com/ibrews/claude-fleet" target="_blank" style="display:inline-block;margin-top:8px;padding:6px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:12px">⭐ Star on GitHub</a>
-    <span style="margin-left:12px;cursor:pointer;font-size:12px;color:var(--dim)" onclick="if(musicPlaying){stopMusic();this.textContent='🔇 Sound off'}else{startMusic();this.textContent='🔊 Sound on'}">${musicPlaying ? '🔊 Sound on' : '🔇 Sound off'}</span>
+    <span style="margin-left:12px;cursor:pointer;font-size:12px;color:var(--dim)" onclick="if(musicPlaying){stopMusic();this.textContent='🔇 Sound off'}else{startMusic();this.textContent='🔊 Sound on'}">🔊 Sound</span>
   </div>
 </div>
 
@@ -313,12 +352,14 @@ const G = {
   tasksCompleted: 0,
   usedInbox: false,
   usedInstant: false,
+  usedFleetWide: false,
   currentRank: 0,
-  showCelebration: null, // rank index to celebrate
+  showCelebration: null,
   skynetTriggered: false,
+  score: 0,
 };
 
-const PHASES = ['Company', 'Machines', 'Network', 'Knowledge Base', 'Fleet Operations'];
+const PHASES = ['Company', 'Machines', 'Install', 'Network', 'Knowledge Base', 'Fleet Operations'];
 
 const RANKS = [
   { name: 'Cadet', icon: '🔰', req: () => G.phase >= 4, desc: 'You have machines. They have potential.', next: 'Complete 3 tasks to rank up' },
@@ -340,7 +381,29 @@ const COLORS = ['#6366f1', '#f97316', '#ef4444', '#22c55e', '#3b82f6', '#eab308'
 // ── Random generators for dice button ──
 const COMPANY_NAMES = ['Nebula Labs', 'Vortex AI', 'Iron Forge', 'Quantum Leap', 'Dark Matter', 'Pixel Storm', 'Deep Signal', 'Nova Core', 'Lunar Tide', 'Cipher Works', 'Ghost Protocol', 'Black Mesa', 'Aperture Science', 'Stark Industries', 'Weyland Corp', 'Tyrell Systems', 'Cyberdyne', 'Umbrella Corp', 'Gekko Capital', 'Pied Piper'];
 const MACHINE_NAMES = ['Fortress', 'Archon', 'Phantom', 'Titan', 'Obelisk', 'Sentinel', 'Nexus', 'Spectre', 'Colossus', 'Hydra', 'Atlas', 'Cerberus', 'Omega', 'Vanguard', 'Eclipse', 'Monolith', 'Tempest', 'Wraith', 'Bastion', 'Goliath'];
-const TASK_IDEAS = ['check disk space', 'run the test suite', 'deploy to staging', 'check GPU utilization', 'git status on all repos', 'list running processes', 'backup the database', 'check network latency', 'update dependencies', 'profile memory usage', 'scan for large files', 'check SSL certificates', 'restart the web server', 'pull latest on all projects', 'benchmark the GPU', 'check docker containers', 'analyze log files', 'clear temp files over 1GB', 'check model inference speed', 'report uptime and load average'];
+const TASK_IDEAS = [
+  // System ops
+  'check disk space', 'run the test suite', 'deploy to staging', 'check GPU utilization',
+  'git status on all repos', 'list running processes', 'backup the database', 'check network latency',
+  'update dependencies', 'profile memory usage', 'scan for large files', 'restart the web server',
+  'pull latest on all projects', 'benchmark the GPU', 'analyze log files', 'report uptime and load average',
+  // AI/ML specific
+  'install Gemma 4 27B and run coding benchmarks', 'download Llama 4 Scout and test inference speed',
+  'run the eval suite against all local models', 'check ollama status and loaded models',
+  'fine-tune the code completion model on our codebase', 'benchmark GPU VRAM usage under load',
+  'install Unreal Engine 5.6 and verify GPU drivers', 'pull the latest ML training dataset from S3',
+  'run A/B comparison: Gemma4 vs Qwen3 on code tasks', 'start a distributed training run across the fleet',
+];
+
+// Fleet-wide task templates (shown as special buttons in play phase)
+const FLEET_TASKS = [
+  { label: 'Install Unreal Engine 5.6 on all machines', icon: '🎮', points: 50 },
+  { label: 'Install Gemma4 27B and run coding benchmarks', icon: '🧠', points: 50 },
+  { label: 'Pull latest code on every machine', icon: '📥', points: 20 },
+  { label: 'Run the full test suite fleet-wide', icon: '🧪', points: 30 },
+  { label: 'Check disk space across the fleet', icon: '💾', points: 15 },
+  { label: 'Benchmark all GPUs', icon: '📊', points: 40 },
+];
 
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function pickUnused(arr, existing) { const unused = arr.filter(x => !existing.includes(x)); return unused.length > 0 ? pick(unused) : pick(arr) + '-' + Math.floor(Math.random()*99); }
@@ -433,9 +496,10 @@ function renderPhase() {
   switch(G.phase) {
     case 0: return renderCompanySetup();
     case 1: return renderMachineSetup();
-    case 2: return renderNetworkSetup();
-    case 3: return renderKBSetup();
-    case 4: return renderPlay();
+    case 2: return renderInstallPhase();
+    case 3: return renderNetworkSetup();
+    case 4: return renderKBSetup();
+    case 5: return renderPlay();
     default: return '';
   }
 }
@@ -450,7 +514,7 @@ function renderCompanySetup() {
           <strong>In the real world:</strong> claude-fleet works for any team with multiple computers.
           Whether you're a solo dev with a laptop and a beefy desktop, or a studio with a rack of machines — if they can run Claude Code and reach each other over Tailscale, they're a fleet.
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-top:20px">
           <div class="setup-section">
             <label>Company / Team Name</label>
             <input id="company-name" placeholder="e.g. Nebula Labs" value="${esc(G.company.name)}" />
@@ -530,6 +594,127 @@ function renderMachineSetup() {
 }
 
 // ── Phase 2: Network (Tailscale) ──
+// ── Phase 2: Install Software ──
+const INSTALL_STEPS = [
+  { id: 'tailscale', name: 'Tailscale', icon: '🔗', cmd: { macOS: 'brew install tailscale', Windows: 'winget install Tailscale', Linux: 'curl -fsSL https://tailscale.com/install.sh | sh' }, time: 1200 },
+  { id: 'node', name: 'Node.js', icon: '📦', cmd: { macOS: 'brew install node', Windows: 'winget install OpenJS.NodeJS', Linux: 'curl -fsSL https://deb.nodesource.com/setup_22.x | bash && apt install -y nodejs' }, time: 1500 },
+  { id: 'claude', name: 'Claude Code', icon: '🤖', cmd: { macOS: 'npm install -g @anthropic-ai/claude-code', Windows: 'npm install -g @anthropic-ai/claude-code', Linux: 'npm install -g @anthropic-ai/claude-code' }, time: 2000 },
+  { id: 'hooks', name: 'Fleet Hooks', icon: '⚙️', cmd: { macOS: 'cp ~/claude-fleet/scripts/*.sh ~/claude-fleet/', Windows: 'copy claude-fleet\\scripts\\*.js claude-fleet\\', Linux: 'cp ~/claude-fleet/scripts/*.sh ~/claude-fleet/' }, time: 800 },
+];
+
+function installOn(machineIdx, stepId) {
+  sfxClick();
+  const m = G.machines[machineIdx];
+  if (!m.installed) m.installed = {};
+  if (m.installed[stepId]) return;
+  m.installing = stepId;
+  render();
+
+  const step = INSTALL_STEPS.find(s => s.id === stepId);
+  setTimeout(() => {
+    m.installed[stepId] = true;
+    m.installing = null;
+    G.score += 5;
+    sfxComplete();
+    // Auto-check if all done
+    const allDone = G.machines.every(m => INSTALL_STEPS.every(s => m.installed && m.installed[s.id]));
+    if (allDone) {
+      sfxRankUp();
+      showToast('All Installed!', 'Every machine is ready. Time to connect the network.', 'success');
+    }
+    render();
+  }, step.time + Math.random() * 500);
+}
+
+function installAllOnMachine(machineIdx) {
+  sfxClick();
+  const m = G.machines[machineIdx];
+  if (!m.installed) m.installed = {};
+  let delay = 0;
+  INSTALL_STEPS.forEach(step => {
+    if (!m.installed[step.id]) {
+      setTimeout(() => installOn(machineIdx, step.id), delay);
+      delay += step.time + 300;
+    }
+  });
+}
+
+function installEverything() {
+  sfxClick();
+  G.machines.forEach((m, i) => {
+    setTimeout(() => installAllOnMachine(i), i * 800);
+  });
+}
+
+function renderInstallPhase() {
+  const allDone = G.machines.every(m => INSTALL_STEPS.every(s => m.installed && m.installed[s.id]));
+  const totalSteps = G.machines.length * INSTALL_STEPS.length;
+  const doneSteps = G.machines.reduce((n, m) => n + INSTALL_STEPS.filter(s => m.installed && m.installed[s.id]).length, 0);
+
+  return `
+    <div class="card">
+      <div class="card-header">
+        <h2>Step 3: Install the Stack</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="dice-btn" onclick="installEverything()">🎲 Install All</button>
+          <span style="color:var(--dim);font-size:13px">${doneSteps}/${totalSteps}</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="concept-tooltip">
+          <strong>In the real world:</strong> Each machine needs 4 things: <strong>Tailscale</strong> (VPN mesh),
+          <strong>Node.js</strong> (for fleet scripts), <strong>Claude Code</strong> (the AI),
+          and the <strong>fleet hooks</strong> (inbox check on start, KB sync on stop).
+          Install order doesn't matter — just get all four on every machine.
+        </div>
+
+        <div style="margin-top:20px;overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead>
+              <tr style="border-bottom:2px solid var(--border)">
+                <th style="text-align:left;padding:8px 12px;color:var(--dim);font-size:11px">MACHINE</th>
+                ${INSTALL_STEPS.map(s => `<th style="text-align:center;padding:8px 12px;color:var(--dim);font-size:11px">${s.icon} ${s.name}</th>`).join('')}
+                <th style="text-align:center;padding:8px 12px;color:var(--dim);font-size:11px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${G.machines.map((m, mi) => {
+                const machineAllDone = INSTALL_STEPS.every(s => m.installed && m.installed[s.id]);
+                return `
+                <tr style="border-bottom:1px solid var(--border)">
+                  <td style="padding:10px 12px;font-weight:600;color:${m.color}">
+                    ${esc(m.name)}<br>
+                    <span style="font-size:10px;color:var(--dim);font-weight:400">${m.os}</span>
+                  </td>
+                  ${INSTALL_STEPS.map(s => {
+                    const installed = m.installed && m.installed[s.id];
+                    const installing = m.installing === s.id;
+                    return `<td style="text-align:center;padding:8px">
+                      ${installed ? '<span style="color:var(--green);font-size:18px">✓</span>'
+                        : installing ? '<span style="color:var(--yellow);animation:pulse 1s infinite">⏳</span>'
+                        : `<button class="btn btn-sm" style="font-size:11px;padding:4px 10px" onclick="installOn(${mi},'${s.id}')">Install</button>`}
+                      ${installed ? '' : `<div style="font-size:9px;color:var(--dim);margin-top:2px;font-family:'JetBrains Mono',monospace">${esc(s.cmd[m.os] || s.cmd.Linux)}</div>`}
+                    </td>`;
+                  }).join('')}
+                  <td style="text-align:center;padding:8px">
+                    ${machineAllDone ? '<span style="color:var(--green);font-weight:600;font-size:12px">Ready</span>'
+                      : `<button class="dice-btn" onclick="installAllOnMachine(${mi})" style="font-size:11px">🎲 All</button>`}
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:20px">
+          <button class="btn" onclick="G.phase=1;render()">← Back</button>
+          <button class="btn btn-primary" ${!allDone ? 'disabled title="Install everything first"' : ''} onclick="G.phase=3;render()">Next: Connect the Network →</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderNetworkSetup() {
   return `
     <div class="card">
@@ -552,8 +737,8 @@ function renderNetworkSetup() {
           </div>
         </div>
         <div style="display:flex;justify-content:space-between;margin-top:20px">
-          <button class="btn" onclick="G.phase=1;render()">← Back</button>
-          <button class="btn btn-primary" onclick="G.phase=3;initKB();render()">Next: Set Up Knowledge Base →</button>
+          <button class="btn" onclick="G.phase=2;render()">← Back</button>
+          <button class="btn btn-primary" onclick="G.phase=4;initKB();render()">Next: Set Up Knowledge Base →</button>
         </div>
       </div>
     </div>
@@ -604,8 +789,8 @@ function renderKBSetup() {
         </div>
 
         <div style="display:flex;justify-content:space-between;margin-top:20px">
-          <button class="btn" onclick="G.phase=2;render()">← Back</button>
-          <button class="btn btn-primary btn-green" onclick="G.phase=4;initPlay();render()">Launch Fleet Operations →</button>
+          <button class="btn" onclick="G.phase=3;render()">← Back</button>
+          <button class="btn btn-primary btn-green" onclick="G.phase=5;initPlay();render()">Launch Fleet Operations →</button>
         </div>
       </div>
     </div>
@@ -642,12 +827,12 @@ function renderPlay() {
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center">
-        <div style="font-size:12px;color:var(--dim)">FLEET: ${esc(G.company.name)}</div>
-        <div style="font-size:28px;font-weight:700">${G.machines.length} machines</div>
+    <div class="play-stats" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div style="flex:1;min-width:140px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+        <div style="font-size:11px;color:var(--dim)">FLEET: ${esc(G.company.name)}</div>
+        <div style="font-size:24px;font-weight:700">${G.machines.length} machines</div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div style="display:flex;gap:8px;flex:1;min-width:200px">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
           <div style="font-size:10px;color:var(--dim)">TASKS</div>
           <div style="font-size:22px;font-weight:700;color:var(--green)">${G.tasksCompleted}</div>
@@ -659,6 +844,10 @@ function renderPlay() {
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
           <div style="font-size:10px;color:var(--dim)">CONCEPTS</div>
           <div style="font-size:22px;font-weight:700;color:var(--accent)">${G.conceptsLearned.length}</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--accent);border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:10px;color:var(--accent)">SCORE</div>
+          <div style="font-size:22px;font-weight:700;color:var(--accent)">${G.score}</div>
         </div>
       </div>
     </div>
@@ -702,6 +891,26 @@ function renderPlay() {
     </div>
 
     <div class="card">
+      <div class="card-header">
+        <h2>🌐 Fleet-Wide Operations</h2>
+        <span class="learn-badge" title="This is the magic — one click dispatches to ALL machines simultaneously">The power of a fleet</span>
+      </div>
+      <div class="card-body">
+        <div class="concept-tooltip" style="margin-bottom:12px">
+          <strong>Before fleet:</strong> You'd SSH into each machine one-by-one, run the same command, wait, repeat.
+          <strong>After fleet:</strong> One click. Every machine works in parallel. Results stream back.
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${FLEET_TASKS.map(t => `
+            <button class="btn" style="font-size:12px;padding:8px 14px" onclick="dispatchFleetWide('${t.label}', ${t.points})">
+              ${t.icon} ${t.label.length > 35 ? t.label.slice(0,35) + '...' : t.label}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-header"><h2>Fleet Activity</h2></div>
       <div class="card-body activity-feed" id="activity-feed">
         ${G.activity.length === 0 ? '<div style="color:var(--dim);text-align:center;padding:20px">Dispatch a task to see activity here.</div>' : ''}
@@ -729,6 +938,39 @@ function initPlay() {
   G.machines.forEach(m => m.status = 'online');
   addActivity('info', `🚀 ${G.company.name} fleet is online! ${G.machines.length} machines ready.`);
   learnConcept('fleet-setup');
+}
+
+function addScore(points, reason) {
+  G.score += points;
+  showToast(`+${points} pts`, reason, 'info');
+}
+
+function dispatchFleetWide(task, points) {
+  sfxDispatch();
+  G.usedFleetWide = true;
+  learnConcept('fleet-wide-dispatch');
+  addActivity('dispatch', `🌐 <strong>Fleet-wide:</strong> "${task}" → ${G.machines.length} machines`);
+  addScore(points, `Fleet-wide: ${task}`);
+
+  G.machines.forEach((m, i) => {
+    setTimeout(() => {
+      m.status = 'busy';
+      m.currentTask = task;
+      render();
+      setTimeout(() => {
+        const response = getResponse(task, m);
+        m.status = 'online';
+        m.currentTask = null;
+        G.tasksCompleted++;
+        G.hooksFired += 2;
+        addActivity('complete', `✅ <strong>${m.name}</strong>: ${response.split('\\n')[0].slice(0, 80)}`);
+        sfxComplete();
+        checkRank();
+        render();
+      }, 1500 + Math.random() * 2000);
+    }, i * 600);
+  });
+  render();
 }
 
 function addActivity(type, message) {
@@ -798,6 +1040,7 @@ function renderCelebration() {
           <div class="celeb-stat"><div class="val" style="color:var(--purple)">${G.hooksFired}</div><div class="lbl">Hooks</div></div>
           <div class="celeb-stat"><div class="val" style="color:var(--accent)">${G.conceptsLearned.length}</div><div class="lbl">Concepts</div></div>
           <div class="celeb-stat"><div class="val">${G.machines.length}</div><div class="lbl">Machines</div></div>
+          <div class="celeb-stat"><div class="val" style="color:var(--accent)">${G.score}</div><div class="lbl">Score</div></div>
         </div>
         ${!isSkynet ? `
           <button class="btn btn-primary" onclick="G.showCelebration=null;render()">Continue Commanding</button>
@@ -882,7 +1125,8 @@ function dispatchInbox(target, task) {
       learnConcept('telegram');
 
       sfxComplete();
-      showToast(`✅ ${target}`, response.split('\n')[0], 'success');
+      G.score += 10;
+      showToast(`✅ ${target} (+10 pts)`, response.split('\n')[0], 'success');
       checkRank();
       render();
     }, 2000 + Math.random() * 3000);
@@ -917,7 +1161,8 @@ function dispatchInstant(target, task) {
     addActivity('complete', `✅ <strong>${target}</strong> responded:\n<pre style="margin-top:4px;font-size:11px;color:var(--text);white-space:pre-wrap">${esc(response)}</pre>`);
 
     sfxComplete();
-    showToast(`✅ ${target}`, response.split('\n')[0], 'success');
+    G.score += 15;
+    showToast(`✅ ${target} (+15 pts)`, response.split('\n')[0], 'success');
     checkRank();
     render();
   }, 1500 + Math.random() * 2000);
@@ -949,7 +1194,7 @@ function bindEvents() {
     render();
   };
   const nextMachinesBtn = document.getElementById('btn-next-machines');
-  if (nextMachinesBtn) nextMachinesBtn.onclick = () => { G.phase = 2; render(); };
+  if (nextMachinesBtn) nextMachinesBtn.onclick = () => { G.phase = 2; G.machines.forEach(m => { m.installed = {}; }); render(); };
 
   // Inbox tabs
   document.querySelectorAll('.inbox-tab').forEach(tab => {
