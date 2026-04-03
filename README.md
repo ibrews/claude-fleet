@@ -220,11 +220,28 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 
 ## Try It — Fleet Commander
 
-**[Launch Fleet Commander](https://ibrews.github.io/claude-fleet/docs/fleet-commander.html)** — an interactive browser game that teaches you how claude-fleet works. Build your fleet, spec your machines, dispatch tasks, and learn the architecture by playing. No installation required.
+**[🎮 Launch Fleet Commander](https://ibrews.github.io/claude-fleet/docs/fleet-commander.html)** — an interactive browser game that teaches the full claude-fleet architecture by having you build and manage your own fleet. No installation required.
 
+**Features:**
+- Name your company, spec your machines (OS, GPU, role)
+- Install the stack on each machine (Tailscale, Node.js, Claude Code, hooks)
+- Dispatch tasks via Inbox (async) or Instant (SSH) — watch data pulses travel through animated wires
+- Fleet-wide operations — one click dispatches to all machines in parallel
+- 11 ranks from Cadet to SKYNET (can you hit 5000 points?)
+- Global leaderboard, generative chiptune soundtrack, mad-libs task builder
+- Interactive slideshow teaching the architecture
+
+### Build your fleet
 ![Fleet Commander — Build your fleet](docs/images/fc-machines.png)
-![Fleet Commander — Dispatch tasks and watch hooks fire](docs/images/fc-midgame.png)
-![Fleet Commander — Achieve SKYNET](docs/images/fc-skynet.png)
+
+### Install the stack
+![Fleet Commander — Install phase](docs/images/fc-play.png)
+
+### Dispatch tasks and watch hooks fire
+![Fleet Commander — Dispatch tasks](docs/images/fc-midgame.png)
+
+### Achieve SKYNET
+![Fleet Commander — SKYNET](docs/images/fc-skynet.png)
 
 ## Examples
 
