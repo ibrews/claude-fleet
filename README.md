@@ -54,7 +54,7 @@ The `~/.claude/` directory is Claude Code's internal config directory. Accessing
 
 - Not a CI/CD system. There's no pipeline — machines work autonomously.
 - Not a cloud orchestration tool. These are your physical machines, connected peer-to-peer.
-- Not dependent on a central server. The git repo is the only shared resource.
+- Not dependent on a central server. The git repo is the only required shared resource. The optional [Control Center](docs/11-control-center.md) adds a centralized dashboard for fleet-wide visibility and instant task dispatch, but the core inbox system works without it.
 
 ## Prerequisites
 
@@ -188,6 +188,7 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 | [Fleet Trigger](docs/08-fleet-trigger.md) | Triggering all machines at once |
 | [Troubleshooting](docs/09-troubleshooting.md) | Common issues and fixes |
 | [Notifications](docs/10-notifications.md) | Mid-session inter-machine notifications |
+| [Control Center](docs/11-control-center.md) | Web dashboard for fleet management and instant dispatch |
 
 ## Examples
 
