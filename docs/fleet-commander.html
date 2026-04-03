@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fleet Commander — Learn Claude Fleet</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a24; --border: #2a2a3a;
+    --text: #e0e0e0; --dim: #666; --accent: #d97706; --green: #22c55e; --red: #ef4444;
+    --yellow: #eab308; --blue: #3b82f6; --purple: #8b5cf6;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; }
+  code, .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* ── Layout ── */
+  .game-container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  .header { text-align: center; padding: 40px 0 30px; }
+  .header h1 { font-size: 48px; font-weight: 800; letter-spacing: -2px; }
+  .header h1 span { color: var(--accent); }
+  .header .tagline { color: var(--dim); font-size: 16px; margin-top: 8px; }
+  .header .phase-indicator { display: flex; gap: 8px; justify-content: center; margin-top: 20px; }
+  .header .phase-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); transition: all 0.3s; }
+  .header .phase-dot.active { background: var(--accent); box-shadow: 0 0 8px rgba(217,119,6,0.5); }
+  .header .phase-dot.done { background: var(--green); }
+
+  /* ── Cards ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
+  .card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .card-header h2 { font-size: 16px; font-weight: 600; }
+  .card-body { padding: 20px; }
+
+  /* ── Buttons ── */
+  .btn { padding: 10px 20px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); cursor: pointer; font-size: 14px; font-family: inherit; transition: all 0.2s; }
+  .btn:hover { background: var(--border); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 600; }
+  .btn-primary:hover { background: #b45309; }
+  .btn-green { background: var(--green); border-color: var(--green); color: #000; font-weight: 600; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Inputs ── */
+  input, select, textarea {
+    padding: 10px 14px; border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+    border-radius: 8px; font-size: 14px; font-family: inherit; width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+
+  /* ── Setup Phase ── */
+  .setup-section { margin-bottom: 24px; }
+  .setup-section label { display: block; font-size: 13px; font-weight: 600; color: var(--dim); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* ── Machine Builder ── */
+  .machine-builder { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .machine-slot { background: var(--surface2); border: 2px dashed var(--border); border-radius: 12px; padding: 20px; min-height: 200px; display: flex; flex-direction: column; gap: 10px; transition: all 0.3s; }
+  .machine-slot.filled { border-style: solid; border-color: var(--accent); }
+  .machine-slot .machine-name-display { font-size: 18px; font-weight: 700; }
+  .machine-slot .machine-spec { font-size: 12px; color: var(--dim); }
+  .add-machine-btn { display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 32px; color: var(--dim); }
+  .add-machine-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Terminal ── */
+  .terminal { background: #0d0d14; border: 1px solid var(--border); border-radius: 8px; padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.8; max-height: 400px; overflow-y: auto; }
+  .terminal .line { opacity: 0; animation: fadeIn 0.3s ease forwards; }
+  .terminal .prompt { color: var(--green); }
+  .terminal .info { color: var(--blue); }
+  .terminal .warn { color: var(--yellow); }
+  .terminal .error { color: var(--red); }
+  .terminal .success { color: var(--green); }
+  .terminal .dim { color: var(--dim); }
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  /* ── Inbox ── */
+  .inbox-panel { display: grid; grid-template-columns: 200px 1fr; gap: 16px; }
+  .inbox-list { display: flex; flex-direction: column; gap: 4px; }
+  .inbox-tab { padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; transition: background 0.2s; }
+  .inbox-tab:hover { background: var(--surface2); }
+  .inbox-tab.active { background: var(--accent); color: #000; font-weight: 600; }
+  .inbox-tab .count { font-size: 11px; background: rgba(255,255,255,0.15); padding: 1px 6px; border-radius: 10px; }
+  .inbox-content { font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.8; white-space: pre-wrap; }
+
+  /* ── Dispatch Bar ── */
+  .dispatch-bar { display: flex; gap: 10px; margin-bottom: 16px; }
+  .dispatch-bar select { width: 150px; }
+  .dispatch-bar input { flex: 1; }
+
+  /* ── Notification Toast ── */
+  .toast-container { position: fixed; top: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+  .toast { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; min-width: 300px; animation: slideIn 0.3s ease; box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
+  .toast.success { border-left: 3px solid var(--green); }
+  .toast.info { border-left: 3px solid var(--blue); }
+  .toast.warn { border-left: 3px solid var(--yellow); }
+  .toast .toast-title { font-size: 12px; font-weight: 600; color: var(--dim); text-transform: uppercase; }
+  .toast .toast-msg { font-size: 13px; margin-top: 4px; }
+  @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  /* ── Phase sections ── */
+  .phase { display: none; }
+  .phase.active { display: block; }
+
+  /* ── Machine status grid (play phase) ── */
+  .fleet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .fleet-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; position: relative; cursor: pointer; transition: all 0.2s; }
+  .fleet-card:hover { border-color: var(--accent); }
+  .fleet-card .status-dot { width: 8px; height: 8px; border-radius: 50%; position: absolute; top: 14px; right: 14px; }
+  .fleet-card .status-dot.online { background: var(--green); box-shadow: 0 0 6px rgba(34,197,94,0.5); animation: pulse 2s infinite; }
+  .fleet-card .status-dot.busy { background: var(--yellow); }
+  .fleet-card .status-dot.offline { background: var(--border); }
+  .fleet-card .machine-name { font-weight: 700; font-size: 15px; }
+  .fleet-card .machine-info { font-size: 11px; color: var(--dim); margin-top: 4px; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 4px rgba(34,197,94,0.3); } 50% { box-shadow: 0 0 12px rgba(34,197,94,0.7); } }
+
+  /* ── Activity Feed ── */
+  .activity-feed { max-height: 300px; overflow-y: auto; }
+  .activity-item { padding: 8px 12px; border-left: 3px solid var(--border); margin-bottom: 6px; font-size: 12px; border-radius: 0 6px 6px 0; background: var(--surface2); }
+  .activity-item.dispatch { border-left-color: var(--accent); }
+  .activity-item.complete { border-left-color: var(--green); }
+  .activity-item.hook { border-left-color: var(--purple); }
+
+  /* ── Learn badges ── */
+  .learn-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; background: rgba(139,92,246,0.15); color: var(--purple); border: 1px solid rgba(139,92,246,0.3); }
+  .concept-tooltip { font-size: 12px; color: var(--dim); background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-top: 8px; line-height: 1.6; }
+  .concept-tooltip strong { color: var(--accent); }
+
+  /* ── Footer ── */
+  .footer { text-align: center; padding: 40px 0; color: var(--dim); font-size: 13px; }
+  .footer a { color: var(--accent); text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="toast-container" id="toasts"></div>
+
+<div class="game-container">
+  <div class="header">
+    <h1>Fleet <span>Commander</span></h1>
+    <div class="tagline">Build your fleet. Dispatch tasks. Learn claude-fleet by playing.</div>
+    <div class="phase-indicator" id="phase-dots"></div>
+  </div>
+
+  <div id="game"></div>
+
+  <div class="footer">
+    Built to teach <a href="https://github.com/ibrews/claude-fleet" target="_blank">claude-fleet</a> — the open-source system for coordinating Claude Code across multiple machines.
+  </div>
+</div>
+
+<script>
+// ── Game State ──
+const G = {
+  phase: 0, // 0=company, 1=machines, 2=network, 3=kb, 4=play
+  company: { name: '', industry: '' },
+  machines: [],
+  kb: { files: {}, inboxes: {} },
+  activity: [],
+  toasts: [],
+  selectedMachine: null,
+  dispatchHistory: [],
+  conceptsLearned: [],
+  hooksFired: 0,
+  tasksCompleted: 0,
+};
+
+const PHASES = ['Company', 'Machines', 'Network', 'Knowledge Base', 'Fleet Operations'];
+
+const OS_OPTIONS = ['macOS', 'Windows', 'Linux'];
+const GPU_OPTIONS = ['None', 'RTX 4090', 'RTX 5090', 'RTX A6000', 'M1 Max', 'M4 Ultra', 'A100'];
+const ROLE_OPTIONS = ['General dev', 'GPU compute', 'Build server', 'ML inference', 'Gateway/orchestrator', 'Game engine', 'Mobile dev'];
+const INDUSTRY_OPTIONS = ['AI/ML Startup', 'Game Studio', 'Creative Agency', 'Enterprise SaaS', 'Biotech Research', 'Autonomous Vehicles', 'Robotics', 'Fintech'];
+
+const COLORS = ['#6366f1', '#f97316', '#ef4444', '#22c55e', '#3b82f6', '#eab308', '#a855f7', '#ec4899'];
+
+// ── Simulated Claude responses based on task + machine role ──
+const TASK_RESPONSES = {
+  'check disk space': (m) => `${m.name}: ${Math.floor(Math.random()*800+200)} GB free of ${m.gpu.includes('None') ? '512 GB' : '2 TB'} (${Math.floor(Math.random()*60+10)}% used).\nLargest: Projects/ (${Math.floor(Math.random()*200+50)} GB), Models/ (${Math.floor(Math.random()*300+100)} GB)`,
+  'run tests': (m) => `Running test suite on ${m.name}...\n${Math.floor(Math.random()*50+20)} tests passed, ${Math.random() > 0.8 ? Math.floor(Math.random()*3+1) + ' failed' : '0 failed'}.\nCoverage: ${Math.floor(Math.random()*30+65)}%`,
+  'git status': (m) => `On branch main\nYour branch is ${Math.random() > 0.5 ? 'up to date' : Math.floor(Math.random()*3+1) + ' commits ahead of'} origin/main.\n${Math.floor(Math.random()*5)} files changed, ${Math.floor(Math.random()*200)} insertions`,
+  'check gpu': (m) => m.gpu === 'None' ? `${m.name}: No GPU detected.` : `${m.name}: ${m.gpu}\nVRAM: ${Math.floor(Math.random()*20+8)} GB / ${m.gpu.includes('A100') ? '80' : m.gpu.includes('5090') ? '32' : '24'} GB\nUtilization: ${Math.floor(Math.random()*80+5)}%\nTemp: ${Math.floor(Math.random()*30+50)}°C`,
+  'deploy': (m) => `Deploying to ${m.role.includes('Build') ? 'staging' : 'production'} from ${m.name}...\nPulling latest... done.\nBuilding... done (${Math.floor(Math.random()*120+30)}s).\nDeploy complete. Health check passed.`,
+  'default': (m) => `${m.name} processed your task.\nResult: Task completed successfully on ${m.os} (${m.gpu !== 'None' ? m.gpu : 'CPU-only'}).\nDuration: ${Math.floor(Math.random()*30+5)}s`
+};
+
+function getResponse(task, machine) {
+  const lower = task.toLowerCase();
+  for (const [key, fn] of Object.entries(TASK_RESPONSES)) {
+    if (key !== 'default' && lower.includes(key.split(' ')[0])) return fn(machine);
+  }
+  return TASK_RESPONSES.default(machine);
+}
+
+// ── Render ──
+function render() {
+  const el = document.getElementById('game');
+  el.innerHTML = renderPhase();
+  renderPhaseDots();
+  bindEvents();
+}
+
+function renderPhaseDots() {
+  const dots = document.getElementById('phase-dots');
+  dots.innerHTML = PHASES.map((name, i) => `
+    <div class="phase-dot ${i === G.phase ? 'active' : i < G.phase ? 'done' : ''}" title="${name}"></div>
+  `).join('');
+}
+
+function renderPhase() {
+  switch(G.phase) {
+    case 0: return renderCompanySetup();
+    case 1: return renderMachineSetup();
+    case 2: return renderNetworkSetup();
+    case 3: return renderKBSetup();
+    case 4: return renderPlay();
+    default: return '';
+  }
+}
+
+// ── Phase 0: Company Setup ──
+function renderCompanySetup() {
+  return `
+    <div class="card">
+      <div class="card-header"><h2>Step 1: Who are you?</h2></div>
+      <div class="card-body">
+        <div class="concept-tooltip">
+          <strong>In the real world:</strong> claude-fleet works for any team with multiple computers.
+          Whether you're a solo dev with a laptop and a beefy desktop, or a studio with a rack of machines — if they can run Claude Code and reach each other over Tailscale, they're a fleet.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px">
+          <div class="setup-section">
+            <label>Company / Team Name</label>
+            <input id="company-name" placeholder="e.g. Nebula Labs" value="${esc(G.company.name)}" />
+          </div>
+          <div class="setup-section">
+            <label>What do you do?</label>
+            <select id="company-industry">
+              <option value="">Choose your industry...</option>
+              ${INDUSTRY_OPTIONS.map(i => `<option ${G.company.industry === i ? 'selected' : ''}>${i}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div style="text-align:right;margin-top:16px">
+          <button class="btn btn-primary" id="btn-next-company" ${!G.company.name || !G.company.industry ? 'disabled' : ''}>Next: Build Your Fleet →</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Phase 1: Machine Setup ──
+function renderMachineSetup() {
+  return `
+    <div class="card">
+      <div class="card-header">
+        <h2>Step 2: Build Your Fleet</h2>
+        <span style="color:var(--dim);font-size:13px">${G.machines.length} machine${G.machines.length !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="card-body">
+        <div class="concept-tooltip">
+          <strong>In the real world:</strong> Each machine runs Claude Code independently. They can be any mix of macOS, Windows, and Linux.
+          The only requirements: Tailscale VPN + Claude Code + a shared git repo. The fleet scripts handle the rest.
+        </div>
+        <div class="machine-builder" style="margin-top:20px">
+          ${G.machines.map((m, i) => `
+            <div class="machine-slot filled" style="border-color:${m.color}">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div class="machine-name-display" style="color:${m.color}">${esc(m.name)}</div>
+                <button class="btn btn-sm" onclick="G.machines.splice(${i},1);render()" style="padding:2px 8px;font-size:11px">✕</button>
+              </div>
+              <div class="machine-spec">${m.os} · ${m.gpu} · ${m.role}</div>
+              <div class="machine-spec" style="font-family:'JetBrains Mono',monospace;font-size:11px">100.${Math.floor(Math.random()*200+10)}.${Math.floor(Math.random()*200+10)}.${Math.floor(Math.random()*200+10)}</div>
+            </div>
+          `).join('')}
+          ${G.machines.length < 8 ? `
+            <div class="machine-slot add-machine-btn" onclick="document.getElementById('add-machine-form').style.display='block'">
+              <div>+</div>
+              <div style="font-size:13px">Add Machine</div>
+            </div>
+          ` : ''}
+        </div>
+
+        <div id="add-machine-form" style="display:none;margin-top:20px;padding:16px;background:var(--surface2);border-radius:10px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div><label style="font-size:12px;color:var(--dim)">Machine Name</label><input id="new-machine-name" placeholder="e.g. fortress" /></div>
+            <div><label style="font-size:12px;color:var(--dim)">Operating System</label><select id="new-machine-os">${OS_OPTIONS.map(o => `<option>${o}</option>`).join('')}</select></div>
+            <div><label style="font-size:12px;color:var(--dim)">GPU</label><select id="new-machine-gpu">${GPU_OPTIONS.map(g => `<option>${g}</option>`).join('')}</select></div>
+            <div><label style="font-size:12px;color:var(--dim)">Role</label><select id="new-machine-role">${ROLE_OPTIONS.map(r => `<option>${r}</option>`).join('')}</select></div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" id="btn-add-machine">Add to Fleet</button>
+            <button class="btn btn-sm" onclick="document.getElementById('add-machine-form').style.display='none'">Cancel</button>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:20px">
+          <button class="btn" onclick="G.phase=0;render()">← Back</button>
+          <button class="btn btn-primary" id="btn-next-machines" ${G.machines.length < 2 ? 'disabled' : ''}>Next: Connect the Network →</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Phase 2: Network (Tailscale) ──
+function renderNetworkSetup() {
+  return `
+    <div class="card">
+      <div class="card-header"><h2>Step 3: Connect via Tailscale</h2></div>
+      <div class="card-body">
+        <div class="concept-tooltip">
+          <strong>In the real world:</strong> <a href="https://tailscale.com" target="_blank" style="color:var(--accent)">Tailscale</a> creates a peer-to-peer VPN mesh.
+          Every machine gets a stable IP (100.x.y.z). You can <code class="mono">ssh alpha</code> from any machine — no port forwarding needed.
+          The free tier supports up to 100 devices.
+        </div>
+        <div class="terminal" style="margin-top:20px">
+          <div class="line" style="animation-delay:0s"><span class="prompt">$</span> tailscale status</div>
+          ${G.machines.map((m, i) => `
+            <div class="line" style="animation-delay:${0.3 + i * 0.2}s">
+              <span class="success">●</span> ${m.name.padEnd(16)} 100.${100+i}.${50+i*10}.${i+1}  ${m.os.padEnd(10)} active; direct
+            </div>
+          `).join('')}
+          <div class="line" style="animation-delay:${0.3 + G.machines.length * 0.2 + 0.3}s">
+            <span class="dim"># All ${G.machines.length} machines connected. SSH works between any pair.</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:20px">
+          <button class="btn" onclick="G.phase=1;render()">← Back</button>
+          <button class="btn btn-primary" onclick="G.phase=3;initKB();render()">Next: Set Up Knowledge Base →</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Phase 3: Knowledge Base Setup ──
+function renderKBSetup() {
+  return `
+    <div class="card">
+      <div class="card-header"><h2>Step 4: Create the Shared Knowledge Base</h2></div>
+      <div class="card-body">
+        <div class="concept-tooltip">
+          <strong>In the real world:</strong> The knowledge base is a private git repo cloned to <code class="mono">~/knowledge</code> on every machine.
+          It contains inbox files (one per machine), daily logs, decisions, and project context.
+          Machines communicate by writing to each other's inbox files and pushing.
+        </div>
+        <div class="terminal" style="margin-top:20px">
+          <div class="line" style="animation-delay:0s"><span class="prompt">$</span> git init ~/knowledge && cd ~/knowledge</div>
+          <div class="line" style="animation-delay:0.4s"><span class="prompt">$</span> mkdir -p inbox daily decisions</div>
+          ${G.machines.map((m, i) => `
+            <div class="line" style="animation-delay:${0.8 + i * 0.2}s"><span class="info">+</span> Created inbox/${m.name.toLowerCase()}.md</div>
+          `).join('')}
+          <div class="line" style="animation-delay:${0.8 + G.machines.length * 0.2 + 0.3}s"><span class="prompt">$</span> git add -A && git commit -m "init: KB structure" && git push</div>
+          <div class="line" style="animation-delay:${0.8 + G.machines.length * 0.2 + 0.6}s"><span class="success">✓</span> Knowledge base ready. Cloned to all ${G.machines.length} machines.</div>
+        </div>
+
+        <div class="card" style="margin-top:20px">
+          <div class="card-header"><h2>Inbox Preview</h2></div>
+          <div class="card-body">
+            <div class="inbox-panel">
+              <div class="inbox-list">
+                ${G.machines.map((m, i) => `
+                  <div class="inbox-tab ${i === 0 ? 'active' : ''}" data-inbox="${m.name.toLowerCase()}">
+                    ${m.name} <span class="count">0</span>
+                  </div>
+                `).join('')}
+              </div>
+              <div class="inbox-content" id="inbox-preview">
+# Inbox: ${G.machines[0]?.name || 'Machine'}
+
+## Pending
+
+## Done
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:20px">
+          <button class="btn" onclick="G.phase=2;render()">← Back</button>
+          <button class="btn btn-primary btn-green" onclick="G.phase=4;initPlay();render()">Launch Fleet Operations →</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Phase 4: Play ──
+function renderPlay() {
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center">
+        <div style="font-size:12px;color:var(--dim)">FLEET: ${esc(G.company.name)}</div>
+        <div style="font-size:28px;font-weight:700">${G.machines.length} machines</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:10px;color:var(--dim)">TASKS</div>
+          <div style="font-size:22px;font-weight:700;color:var(--green)">${G.tasksCompleted}</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:10px;color:var(--dim)">HOOKS</div>
+          <div style="font-size:22px;font-weight:700;color:var(--purple)">${G.hooksFired}</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:10px;color:var(--dim)">CONCEPTS</div>
+          <div style="font-size:22px;font-weight:700;color:var(--accent)">${G.conceptsLearned.length}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fleet-grid">
+      ${G.machines.map(m => `
+        <div class="fleet-card" data-machine="${m.name}" onclick="selectMachine('${m.name}')">
+          <div class="status-dot ${m.status || 'online'}"></div>
+          <div class="machine-name" style="color:${m.color}">${esc(m.name)}</div>
+          <div class="machine-info">${m.os} · ${m.gpu !== 'None' ? m.gpu : 'CPU'} · ${m.role}</div>
+          ${m.currentTask ? `<div style="margin-top:8px;font-size:11px;color:var(--yellow)">⏳ ${esc(m.currentTask.slice(0,40))}...</div>` : ''}
+          ${(G.kb.inboxes[m.name.toLowerCase()] || []).length > 0 ? `<div style="margin-top:4px;font-size:11px;color:var(--accent)">📬 ${G.kb.inboxes[m.name.toLowerCase()].length} pending</div>` : ''}
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>Dispatch Task</h2>
+        <div style="display:flex;gap:8px">
+          <span class="learn-badge" title="Inbox mode writes to the machine's inbox file. It picks up tasks on next session start.">📬 Inbox</span>
+          <span class="learn-badge" title="Instant mode SSHes to the machine and runs headless Claude Code. Results come back in seconds.">⚡ Instant</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="dispatch-bar">
+          <select id="dispatch-target">
+            ${G.machines.map(m => `<option value="${m.name}">${m.name}</option>`).join('')}
+          </select>
+          <input id="dispatch-task" placeholder="e.g. check disk space, run tests, deploy to staging..." />
+          <button class="btn btn-primary" id="btn-dispatch-inbox">📬 Inbox</button>
+          <button class="btn btn-green" id="btn-dispatch-instant">⚡ Instant</button>
+        </div>
+        <div class="concept-tooltip" style="margin-top:0">
+          <strong>Inbox</strong> writes a task to the machine's <code class="mono">inbox/*.md</code> file.
+          The machine processes it on next session start via the <strong>SessionStart hook</strong>.<br>
+          <strong>Instant</strong> SSHes to the machine and runs <code class="mono">claude -p "task" --max-turns 15</code>. Result comes back immediately.
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>Fleet Activity</h2></div>
+      <div class="card-body activity-feed" id="activity-feed">
+        ${G.activity.length === 0 ? '<div style="color:var(--dim);text-align:center;padding:20px">Dispatch a task to see activity here.</div>' : ''}
+        ${G.activity.map(a => `
+          <div class="activity-item ${a.type}">
+            <span style="color:var(--dim);font-size:11px">${a.time}</span>
+            ${a.type === 'hook' ? '<span class="learn-badge" style="margin-left:6px">Hook</span>' : ''}
+            <div style="margin-top:2px">${a.message}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ── Game Logic ──
+function initKB() {
+  G.machines.forEach(m => {
+    G.kb.inboxes[m.name.toLowerCase()] = [];
+  });
+}
+
+function initPlay() {
+  G.activity = [];
+  G.machines.forEach(m => m.status = 'online');
+  addActivity('info', `🚀 ${G.company.name} fleet is online! ${G.machines.length} machines ready.`);
+  learnConcept('fleet-setup');
+}
+
+function addActivity(type, message) {
+  const now = new Date();
+  const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  G.activity.unshift({ type, message, time });
+  if (G.activity.length > 50) G.activity.pop();
+}
+
+function learnConcept(id) {
+  if (!G.conceptsLearned.includes(id)) {
+    G.conceptsLearned.push(id);
+  }
+}
+
+function showToast(title, msg, type = 'info') {
+  const container = document.getElementById('toasts');
+  const toast = document.createElement('div');
+  toast.className = 'toast ' + type;
+  toast.innerHTML = `<div class="toast-title">${title}</div><div class="toast-msg">${msg}</div>`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+function selectMachine(name) {
+  G.selectedMachine = name;
+  // Could open detail panel — for now just highlight
+}
+
+function dispatchInbox(target, task) {
+  if (!target || !task) return;
+  const machine = G.machines.find(m => m.name === target);
+  const inbox = G.kb.inboxes[target.toLowerCase()] || [];
+  inbox.push({ task, from: 'you', time: new Date().toISOString() });
+  G.kb.inboxes[target.toLowerCase()] = inbox;
+
+  addActivity('dispatch', `📬 <strong>Inbox dispatch</strong> → ${target}: "${task}"`);
+  addActivity('hook', `⚙️ <strong>SessionStart hook</strong> fires on ${target} — pulls KB, reads inbox, finds 1 pending task`);
+  G.hooksFired++;
+  learnConcept('inbox-dispatch');
+  learnConcept('sessionstart-hook');
+
+  showToast('Task Dispatched', `${target} will process "${task}" on next session start.`, 'info');
+
+  // Simulate processing after delay
+  setTimeout(() => {
+    machine.status = 'busy';
+    machine.currentTask = task;
+    render();
+
+    setTimeout(() => {
+      const response = getResponse(task, machine);
+      machine.status = 'online';
+      machine.currentTask = null;
+      G.tasksCompleted++;
+
+      // Remove from inbox
+      const idx = G.kb.inboxes[target.toLowerCase()].findIndex(i => i.task === task);
+      if (idx >= 0) G.kb.inboxes[target.toLowerCase()].splice(idx, 1);
+
+      addActivity('complete', `✅ <strong>${target}</strong> completed: "${task}"`);
+      addActivity('hook', `⚙️ <strong>Stop hook</strong> fires — KB auto-synced, Telegram notification sent`);
+      G.hooksFired++;
+      learnConcept('stop-hook');
+      learnConcept('telegram');
+
+      showToast(`✅ ${target}`, response.split('\n')[0], 'success');
+      render();
+    }, 2000 + Math.random() * 3000);
+  }, 1000);
+
+  render();
+}
+
+function dispatchInstant(target, task) {
+  if (!target || !task) return;
+  const machine = G.machines.find(m => m.name === target);
+
+  addActivity('dispatch', `⚡ <strong>Instant dispatch</strong> → ${target}: "${task}"`);
+  addActivity('hook', `🔗 SSH to ${target} (${machine.os}) — running <code>claude -p "${task}" --max-turns 15</code>`);
+  G.hooksFired++;
+  learnConcept('instant-dispatch');
+  learnConcept('headless-claude');
+
+  machine.status = 'busy';
+  machine.currentTask = task;
+  showToast('⚡ Instant Dispatch', `SSH → ${target}. Running headless Claude...`, 'warn');
+  render();
+
+  setTimeout(() => {
+    const response = getResponse(task, machine);
+    machine.status = 'online';
+    machine.currentTask = null;
+    G.tasksCompleted++;
+
+    addActivity('complete', `✅ <strong>${target}</strong> responded:\n<pre style="margin-top:4px;font-size:11px;color:var(--text);white-space:pre-wrap">${esc(response)}</pre>`);
+
+    showToast(`✅ ${target}`, response.split('\n')[0], 'success');
+    render();
+  }, 1500 + Math.random() * 2000);
+}
+
+// ── Event Binding ──
+function bindEvents() {
+  // Company
+  const nameInput = document.getElementById('company-name');
+  const industrySelect = document.getElementById('company-industry');
+  if (nameInput) nameInput.oninput = () => { G.company.name = nameInput.value; document.getElementById('btn-next-company').disabled = !G.company.name || !G.company.industry; };
+  if (industrySelect) industrySelect.onchange = () => { G.company.industry = industrySelect.value; document.getElementById('btn-next-company').disabled = !G.company.name || !G.company.industry; };
+  const nextCompanyBtn = document.getElementById('btn-next-company');
+  if (nextCompanyBtn) nextCompanyBtn.onclick = () => { G.phase = 1; render(); };
+
+  // Add machine
+  const addBtn = document.getElementById('btn-add-machine');
+  if (addBtn) addBtn.onclick = () => {
+    const name = document.getElementById('new-machine-name').value.trim();
+    if (!name) return;
+    G.machines.push({
+      name,
+      os: document.getElementById('new-machine-os').value,
+      gpu: document.getElementById('new-machine-gpu').value,
+      role: document.getElementById('new-machine-role').value,
+      color: COLORS[G.machines.length % COLORS.length],
+      status: 'offline'
+    });
+    render();
+  };
+  const nextMachinesBtn = document.getElementById('btn-next-machines');
+  if (nextMachinesBtn) nextMachinesBtn.onclick = () => { G.phase = 2; render(); };
+
+  // Inbox tabs
+  document.querySelectorAll('.inbox-tab').forEach(tab => {
+    tab.onclick = () => {
+      document.querySelectorAll('.inbox-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const name = tab.dataset.inbox;
+      const m = G.machines.find(m => m.name.toLowerCase() === name);
+      document.getElementById('inbox-preview').textContent = `# Inbox: ${m?.name || name}\n\n## Pending\n${(G.kb.inboxes[name] || []).map(i => `- [ ] ${i.task}`).join('\n') || '(empty)'}\n\n## Done`;
+    };
+  });
+
+  // Dispatch
+  const dispatchInboxBtn = document.getElementById('btn-dispatch-inbox');
+  const dispatchInstantBtn = document.getElementById('btn-dispatch-instant');
+  const dispatchInput = document.getElementById('dispatch-task');
+  if (dispatchInboxBtn) dispatchInboxBtn.onclick = () => {
+    const target = document.getElementById('dispatch-target').value;
+    const task = dispatchInput.value.trim();
+    if (task) { dispatchInbox(target, task); dispatchInput.value = ''; }
+  };
+  if (dispatchInstantBtn) dispatchInstantBtn.onclick = () => {
+    const target = document.getElementById('dispatch-target').value;
+    const task = dispatchInput.value.trim();
+    if (task) { dispatchInstant(target, task); dispatchInput.value = ''; }
+  };
+  if (dispatchInput) dispatchInput.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      const target = document.getElementById('dispatch-target').value;
+      const task = dispatchInput.value.trim();
+      if (task) { (e.shiftKey ? dispatchInstant : dispatchInbox)(target, task); dispatchInput.value = ''; }
+    }
+  };
+}
+
+function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Init ──
+render();
+</script>
+</body>
+</html>

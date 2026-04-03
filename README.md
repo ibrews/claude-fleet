@@ -218,6 +218,10 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 | [Notifications](docs/10-notifications.md) | Mid-session inter-machine notifications |
 | [Control Center](docs/11-control-center.md) | Web dashboard for fleet management and instant dispatch |
 
+## Try It — Fleet Commander
+
+**[Launch Fleet Commander](docs/fleet-commander.html)** — an interactive browser game that teaches you how claude-fleet works. Build your fleet, spec your machines, dispatch tasks, and learn the architecture by playing. No installation required.
+
 ## Examples
 
 - [Two-Machine Fleet](examples/two-machine-fleet/) — Minimal laptop + desktop setup
