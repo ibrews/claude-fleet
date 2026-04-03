@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="6" fill="#0a0a0f"/>
+  <!-- HQ hexagon -->
+  <polygon points="16,6 21,9.5 21,16.5 16,20 11,16.5 11,9.5" fill="none" stroke="#d97706" stroke-width="1.5"/>
+  <circle cx="16" cy="13" r="2" fill="#d97706"/>
+  <!-- Machine nodes -->
+  <circle cx="6" cy="6" r="2.5" fill="none" stroke="#6366f1" stroke-width="1.2"/>
+  <circle cx="26" cy="6" r="2.5" fill="none" stroke="#ef4444" stroke-width="1.2"/>
+  <circle cx="6" cy="26" r="2.5" fill="none" stroke="#22c55e" stroke-width="1.2"/>
+  <circle cx="26" cy="26" r="2.5" fill="none" stroke="#3b82f6" stroke-width="1.2"/>
+  <!-- Wires -->
+  <line x1="11" y1="9.5" x2="8" y2="7" stroke="#6366f1" stroke-width="0.7" opacity="0.5"/>
+  <line x1="21" y1="9.5" x2="24" y2="7" stroke="#ef4444" stroke-width="0.7" opacity="0.5"/>
+  <line x1="11" y1="16.5" x2="8" y2="24" stroke="#22c55e" stroke-width="0.7" opacity="0.5"/>
+  <line x1="21" y1="16.5" x2="24" y2="24" stroke="#3b82f6" stroke-width="0.7" opacity="0.5"/>
+</svg>
