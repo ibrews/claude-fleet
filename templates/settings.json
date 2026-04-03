@@ -40,6 +40,18 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/claude-fleet/check-notifications.sh",
+            "timeout": 5,
+            "statusMessage": "Checking fleet notifications..."
+          }
+        ]
+      }
     ]
   }
 }

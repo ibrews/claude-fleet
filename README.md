@@ -187,6 +187,7 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 | [Hooks](docs/07-hooks.md) | Claude Code hook configuration |
 | [Fleet Trigger](docs/08-fleet-trigger.md) | Triggering all machines at once |
 | [Troubleshooting](docs/09-troubleshooting.md) | Common issues and fixes |
+| [Notifications](docs/10-notifications.md) | Mid-session inter-machine notifications |
 
 ## Examples
 
@@ -195,13 +196,15 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 
 ## How It Works Under the Hood
 
-The magic is in three hooks:
+The magic is in four hooks:
 
 1. **SessionStart** (`kb-inbox-check.sh`): When Claude starts, it pulls the knowledge base and checks for pending inbox items. If found, it injects them into Claude's context as high-priority instructions, so Claude processes them before doing anything else.
 
 2. **Stop** (`kb-session-end.sh`): When Claude finishes, it auto-commits and pushes any changes to the knowledge base. No work is lost.
 
 3. **Stop** (`notify-human.js`): After finishing, it sends a Telegram notification with a status icon so you know what happened without checking the terminal.
+
+4. **PostToolUse** (`check-notifications.sh`): After every tool call, checks for mid-session notifications from other machines. If beta finishes a task that alpha requested, alpha finds out within ~60 seconds — no need to wait for the next session start.
 
 The fleet trigger script (`fleet-inbox-check.sh`) SSHes into every machine in parallel and runs `claude -p "check your inbox"` — which triggers the SessionStart hook, which processes the inbox.
 

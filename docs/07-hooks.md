@@ -85,6 +85,34 @@ Also on Stop, sends a notification to Telegram:
 
 Multiple Stop hooks run in sequence — the KB sync runs first, then the notification.
 
+### PostToolUse — Mid-Session Notifications
+
+After every tool call, this hook checks for notifications from other fleet machines:
+
+```json
+{
+  "PostToolUse": [
+    {
+      "hooks": [{
+        "type": "command",
+        "command": "$HOME/claude-fleet/check-notifications.sh",
+        "timeout": 5
+      }]
+    }
+  ]
+}
+```
+
+The hook only reads a local directory (~5ms), so it adds negligible overhead. A separate cron job handles the git pull. See [Notifications](10-notifications.md) for full setup.
+
+## Headless Sessions (node path)
+
+When running Claude headless (`claude -p "prompt" --max-turns N`), the shell profile doesn't load, so `node` may not be in PATH. Use the full path in hook commands:
+
+- **macOS (Homebrew):** `/opt/homebrew/bin/node`
+- **Linux:** `/usr/bin/node` or `/usr/local/bin/node`
+- **Windows:** `C:\Program Files\nodejs\node.exe`
+
 ## Windows Notes
 
 On Windows, `bash` in the hook command may resolve to WSL's bash (which has a different filesystem). Two solutions:
