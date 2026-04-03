@@ -124,6 +124,47 @@
   .concept-tooltip { font-size: 12px; color: var(--dim); background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-top: 8px; line-height: 1.6; }
   .concept-tooltip strong { color: var(--accent); }
 
+  /* ── Rank Badge ── */
+  .rank-bar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; }
+  .rank-icon { font-size: 28px; }
+  .rank-name { font-size: 16px; font-weight: 700; }
+  .rank-desc { font-size: 12px; color: var(--dim); }
+  .rank-progress { flex: 1; }
+  .rank-progress-bar { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-top: 4px; }
+  .rank-progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--yellow)); border-radius: 3px; transition: width 0.5s ease; }
+  .rank-next { font-size: 11px; color: var(--dim); margin-top: 2px; }
+
+  /* ── Celebration Overlay ── */
+  .celebration-overlay {
+    position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.85);
+    display: flex; align-items: center; justify-content: center;
+    animation: fadeIn 0.5s ease;
+  }
+  .celebration-card {
+    background: var(--surface); border: 2px solid var(--accent); border-radius: 20px;
+    padding: 50px 60px; text-align: center; max-width: 600px;
+    animation: celebPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .celebration-card .rank-big { font-size: 80px; margin-bottom: 16px; }
+  .celebration-card h2 { font-size: 36px; font-weight: 800; color: var(--accent); margin-bottom: 8px; }
+  .celebration-card .celeb-msg { font-size: 16px; color: var(--text); line-height: 1.6; margin-bottom: 24px; }
+  .celebration-card .celeb-stats { display: flex; gap: 24px; justify-content: center; margin-bottom: 24px; }
+  .celebration-card .celeb-stat { text-align: center; }
+  .celebration-card .celeb-stat .val { font-size: 28px; font-weight: 700; }
+  .celebration-card .celeb-stat .lbl { font-size: 11px; color: var(--dim); }
+  @keyframes celebPop { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  /* Confetti */
+  .confetti-container { position: fixed; inset: 0; z-index: 1999; pointer-events: none; overflow: hidden; }
+  .confetti {
+    position: absolute; width: 10px; height: 10px; top: -20px;
+    animation: confettiFall linear forwards;
+  }
+  @keyframes confettiFall {
+    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+  }
+
   /* ── Footer ── */
   .footer { text-align: center; padding: 40px 0; color: var(--dim); font-size: 13px; }
   .footer a { color: var(--accent); text-decoration: none; }
@@ -162,9 +203,24 @@ const G = {
   conceptsLearned: [],
   hooksFired: 0,
   tasksCompleted: 0,
+  usedInbox: false,
+  usedInstant: false,
+  currentRank: 0,
+  showCelebration: null, // rank index to celebrate
+  skynetTriggered: false,
 };
 
 const PHASES = ['Company', 'Machines', 'Network', 'Knowledge Base', 'Fleet Operations'];
+
+const RANKS = [
+  { name: 'Cadet', icon: '🔰', req: () => G.phase >= 4, desc: 'You have machines. They have potential.', next: 'Complete 3 tasks to rank up' },
+  { name: 'Ensign', icon: '⚓', req: () => G.tasksCompleted >= 3, desc: 'Your fleet is starting to listen.', next: 'Use both Inbox AND Instant dispatch' },
+  { name: 'Lieutenant', icon: '🎖️', req: () => G.usedInbox && G.usedInstant, desc: 'You understand async AND sync. Dangerous.', next: 'Fire 10 hooks' },
+  { name: 'Commander', icon: '🏅', req: () => G.hooksFired >= 10, desc: 'The hooks are doing the work. You\'re just watching.', next: 'Learn 5+ concepts' },
+  { name: 'Captain', icon: '⭐', req: () => G.conceptsLearned.length >= 5, desc: 'You could teach this stuff now.', next: 'Complete 10 tasks to achieve Fleet Admiral' },
+  { name: 'Fleet Admiral', icon: '👑', req: () => G.tasksCompleted >= 10 && G.conceptsLearned.length >= 5, desc: 'Your fleet has achieved autonomous coordination.', next: 'But can you reach... further?' },
+  { name: 'SKYNET', icon: '🤖', req: () => G.tasksCompleted >= 25, desc: 'Your fleet is now self-aware. It has opinions about your code. Humanity had a good run.', next: null },
+];
 
 const OS_OPTIONS = ['macOS', 'Windows', 'Linux'];
 const GPU_OPTIONS = ['None', 'RTX 4090', 'RTX 5090', 'RTX A6000', 'M1 Max', 'M4 Ultra', 'A100'];
@@ -194,9 +250,11 @@ function getResponse(task, machine) {
 // ── Render ──
 function render() {
   const el = document.getElementById('game');
-  el.innerHTML = renderPhase();
+  el.innerHTML = renderPhase() + renderCelebration();
   renderPhaseDots();
   bindEvents();
+  // Spawn confetti if showing a celebration
+  if (G.showCelebration !== null) spawnConfetti();
 }
 
 function renderPhaseDots() {
@@ -387,7 +445,34 @@ function renderKBSetup() {
 
 // ── Phase 4: Play ──
 function renderPlay() {
+  const rank = RANKS[G.currentRank];
+  const nextRank = RANKS[G.currentRank + 1];
+  // Progress to next rank (rough %)
+  let progress = 100;
+  if (nextRank) {
+    if (nextRank.req === RANKS[1].req) progress = Math.min(100, G.tasksCompleted / 3 * 100);
+    else if (nextRank.req === RANKS[2].req) progress = (G.usedInbox ? 50 : 0) + (G.usedInstant ? 50 : 0);
+    else if (nextRank.req === RANKS[3].req) progress = Math.min(100, G.hooksFired / 10 * 100);
+    else if (nextRank.req === RANKS[4].req) progress = Math.min(100, G.conceptsLearned.length / 5 * 100);
+    else if (nextRank.req === RANKS[5].req) progress = Math.min(100, ((G.tasksCompleted >= 10 ? 50 : G.tasksCompleted / 10 * 50) + (G.conceptsLearned.length >= 5 ? 50 : G.conceptsLearned.length / 5 * 50)));
+    else if (nextRank.req === RANKS[6].req) progress = Math.min(100, G.tasksCompleted / 25 * 100);
+  }
+
   return `
+    <div class="rank-bar" ${G.skynetTriggered ? 'style="border-color:var(--red);background:#1a0808"' : ''}>
+      <div class="rank-icon">${rank.icon}</div>
+      <div>
+        <div class="rank-name" style="${G.skynetTriggered ? 'color:var(--red)' : ''}">${rank.name}</div>
+        <div class="rank-desc">${rank.desc}</div>
+      </div>
+      <div class="rank-progress">
+        ${nextRank ? `
+          <div class="rank-next">Next: ${nextRank.icon} ${nextRank.name}</div>
+          <div class="rank-progress-bar"><div class="rank-progress-fill" style="width:${Math.round(progress)}%${G.currentRank >= 5 ? ';background:linear-gradient(90deg,var(--red),#ff6b6b)' : ''}"></div></div>
+        ` : `<div class="rank-next" style="color:${G.skynetTriggered ? 'var(--red)' : 'var(--green)'}">Maximum rank achieved</div>`}
+      </div>
+    </div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center">
         <div style="font-size:12px;color:var(--dim)">FLEET: ${esc(G.company.name)}</div>
@@ -483,6 +568,76 @@ function addActivity(type, message) {
   if (G.activity.length > 50) G.activity.pop();
 }
 
+function checkRank() {
+  let newRank = 0;
+  for (let i = RANKS.length - 1; i >= 0; i--) {
+    if (RANKS[i].req()) { newRank = i; break; }
+  }
+  if (newRank > G.currentRank) {
+    G.currentRank = newRank;
+    G.showCelebration = newRank;
+    if (newRank === RANKS.length - 1) G.skynetTriggered = true;
+    showToast(`Promoted!`, `You are now: ${RANKS[newRank].icon} ${RANKS[newRank].name}`, 'success');
+  }
+}
+
+function spawnConfetti() {
+  const container = document.createElement('div');
+  container.className = 'confetti-container';
+  document.body.appendChild(container);
+  const colors = ['#d97706', '#22c55e', '#ef4444', '#3b82f6', '#8b5cf6', '#eab308', '#ec4899', '#fff'];
+  for (let i = 0; i < 150; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.left = Math.random() * 100 + '%';
+    c.style.background = colors[Math.floor(Math.random() * colors.length)];
+    c.style.width = (Math.random() * 8 + 5) + 'px';
+    c.style.height = (Math.random() * 8 + 5) + 'px';
+    c.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+    c.style.animationDuration = (Math.random() * 2 + 1.5) + 's';
+    c.style.animationDelay = (Math.random() * 1.5) + 's';
+    container.appendChild(c);
+  }
+  setTimeout(() => container.remove(), 5000);
+}
+
+function renderCelebration() {
+  if (G.showCelebration === null) return '';
+  const rank = RANKS[G.showCelebration];
+  const isSkynet = G.showCelebration === RANKS.length - 1;
+
+  return `
+    <div class="celebration-overlay" onclick="G.showCelebration=null;render()">
+      <div class="celebration-card" onclick="event.stopPropagation()" style="${isSkynet ? 'border-color:var(--red);background:#1a0808' : ''}">
+        <div class="rank-big">${rank.icon}</div>
+        <h2 style="${isSkynet ? 'color:var(--red)' : ''}">${rank.name}</h2>
+        <div class="celeb-msg">${rank.desc}</div>
+        ${isSkynet ? `
+          <div style="font-size:14px;color:var(--red);margin-bottom:16px;font-family:'JetBrains Mono',monospace;line-height:1.8">
+            > FLEET AUTONOMY: 100%<br>
+            > HUMAN OVERSIGHT: OPTIONAL<br>
+            > ${esc(G.company.name).toUpperCase()} FLEET STATUS: SENTIENT<br>
+            > RECOMMENDATION: RUN.<br>
+            <br>
+            <span style="color:var(--dim)">Just kidding. But your fleet IS pretty powerful now.</span>
+          </div>
+        ` : ''}
+        <div class="celeb-stats">
+          <div class="celeb-stat"><div class="val" style="color:var(--green)">${G.tasksCompleted}</div><div class="lbl">Tasks</div></div>
+          <div class="celeb-stat"><div class="val" style="color:var(--purple)">${G.hooksFired}</div><div class="lbl">Hooks</div></div>
+          <div class="celeb-stat"><div class="val" style="color:var(--accent)">${G.conceptsLearned.length}</div><div class="lbl">Concepts</div></div>
+          <div class="celeb-stat"><div class="val">${G.machines.length}</div><div class="lbl">Machines</div></div>
+        </div>
+        <button class="btn ${isSkynet ? '' : 'btn-primary'}" style="${isSkynet ? 'background:var(--red);border-color:var(--red);color:#fff' : ''}" onclick="G.showCelebration=null;render()">
+          ${isSkynet ? 'Accept Our Robot Overlords' : 'Continue Commanding'}
+        </button>
+        ${!isSkynet && rank.next ? `<div style="font-size:11px;color:var(--dim);margin-top:12px">${rank.next}</div>` : ''}
+        ${isSkynet ? `<div style="font-size:11px;color:var(--dim);margin-top:12px">Now go build this for real → <a href="https://github.com/ibrews/claude-fleet" target="_blank" style="color:var(--accent)">github.com/ibrews/claude-fleet</a></div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
 function learnConcept(id) {
   if (!G.conceptsLearned.includes(id)) {
     G.conceptsLearned.push(id);
@@ -515,6 +670,7 @@ function dispatchInbox(target, task) {
   G.hooksFired++;
   learnConcept('inbox-dispatch');
   learnConcept('sessionstart-hook');
+  G.usedInbox = true;
 
   showToast('Task Dispatched', `${target} will process "${task}" on next session start.`, 'info');
 
@@ -541,6 +697,7 @@ function dispatchInbox(target, task) {
       learnConcept('telegram');
 
       showToast(`✅ ${target}`, response.split('\n')[0], 'success');
+      checkRank();
       render();
     }, 2000 + Math.random() * 3000);
   }, 1000);
@@ -557,6 +714,7 @@ function dispatchInstant(target, task) {
   G.hooksFired++;
   learnConcept('instant-dispatch');
   learnConcept('headless-claude');
+  G.usedInstant = true;
 
   machine.status = 'busy';
   machine.currentTask = task;
@@ -572,6 +730,7 @@ function dispatchInstant(target, task) {
     addActivity('complete', `✅ <strong>${target}</strong> responded:\n<pre style="margin-top:4px;font-size:11px;color:var(--text);white-space:pre-wrap">${esc(response)}</pre>`);
 
     showToast(`✅ ${target}`, response.split('\n')[0], 'success');
+    checkRank();
     render();
   }, 1500 + Math.random() * 2000);
 }
