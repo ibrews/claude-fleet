@@ -170,6 +170,21 @@
   .dice-btn:hover { color: var(--accent); border-color: var(--accent); transform: rotate(15deg); }
   .dice-btn:active { transform: rotate(360deg); transition: transform 0.3s; }
 
+  /* ── Fleet Visualization ── */
+  .fleet-viz-container {
+    position: relative; border-radius: 16px; overflow: hidden;
+    border: 1px solid var(--border); margin-bottom: 20px;
+    background: radial-gradient(ellipse at center, #0d0d1a 0%, #070710 100%);
+  }
+  .fleet-viz-canvas { display: block; width: 100%; }
+  .fleet-viz-toggle {
+    position: absolute; top: 10px; right: 10px; z-index: 10;
+    padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: rgba(10,10,15,0.8); color: var(--dim); cursor: pointer; font-size: 11px;
+    backdrop-filter: blur(4px);
+  }
+  .fleet-viz-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
   /* ── Mobile Responsive ── */
   @media (max-width: 600px) {
     .header h1 { font-size: 36px; }
@@ -410,6 +425,325 @@ document.addEventListener('click', function initOnce() {
   document.removeEventListener('click', initOnce);
 }, { once: true });
 
+// ── Fleet Visualization Module ──
+const FleetViz = {
+  canvas: null, ctx: null, enabled: true, animFrame: null,
+  nodes: [], // { x, y, name, color, glow: 0, processing: false }
+  centerNode: null,
+  wires: [], // { from, to, controlPt }
+  pulses: [], // { wireIdx, t: 0..1, speed, color, size }
+  particles: [], // ambient particles { x, y, vx, vy, life, maxLife, color }
+  lastTime: 0,
+
+  init(machines) {
+    if (!this.canvas) return;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const cx = w / 2, cy = h / 2;
+    const radius = Math.min(w, h) * 0.34;
+
+    // Center node (control center)
+    this.centerNode = { x: cx, y: cy, name: 'HQ', color: '#d97706', glow: 0.3, size: 22 };
+
+    // Machine nodes in a circle
+    this.nodes = machines.map((m, i) => {
+      const angle = (i / machines.length) * Math.PI * 2 - Math.PI / 2;
+      return {
+        x: cx + Math.cos(angle) * radius,
+        y: cy + Math.sin(angle) * radius,
+        name: m.name, color: m.color, glow: 0, processing: false, size: 16,
+        targetGlow: 0, os: m.os
+      };
+    });
+
+    // Wires from center to each node (curved Bezier)
+    this.wires = this.nodes.map((n, i) => {
+      const dx = n.x - cx, dy = n.y - cy;
+      // Control point perpendicular to wire for curve
+      const perpX = -dy * 0.2 * (i % 2 === 0 ? 1 : -1);
+      const perpY = dx * 0.2 * (i % 2 === 0 ? 1 : -1);
+      return {
+        from: { x: cx, y: cy },
+        to: { x: n.x, y: n.y },
+        cp: { x: (cx + n.x) / 2 + perpX, y: (cy + n.y) / 2 + perpY },
+        glow: 0
+      };
+    });
+
+    this.pulses = [];
+    this.particles = [];
+    this.startLoop();
+  },
+
+  startLoop() {
+    if (this.animFrame) cancelAnimationFrame(this.animFrame);
+    this.lastTime = performance.now();
+    const loop = (time) => {
+      if (!this.enabled) { this.animFrame = null; return; }
+      const dt = Math.min((time - this.lastTime) / 1000, 0.05);
+      this.lastTime = time;
+      this.update(dt);
+      this.draw();
+      this.animFrame = requestAnimationFrame(loop);
+    };
+    this.animFrame = requestAnimationFrame(loop);
+  },
+
+  stop() {
+    if (this.animFrame) cancelAnimationFrame(this.animFrame);
+    this.animFrame = null;
+  },
+
+  // Send a data pulse from center to a machine
+  sendPulse(machineIdx, color) {
+    if (machineIdx < 0 || machineIdx >= this.wires.length) return;
+    const c = color || this.nodes[machineIdx]?.color || '#d97706';
+    this.pulses.push({
+      wireIdx: machineIdx, t: 0, speed: 0.6 + Math.random() * 0.3,
+      color: c, size: 4 + Math.random() * 3, trail: []
+    });
+    this.wires[machineIdx].glow = 1;
+    // Spawn sparkle particles at center
+    for (let i = 0; i < 6; i++) {
+      this.particles.push({
+        x: this.centerNode.x, y: this.centerNode.y,
+        vx: (Math.random() - 0.5) * 60, vy: (Math.random() - 0.5) * 60,
+        life: 0.6 + Math.random() * 0.4, maxLife: 1, color: c, size: 2 + Math.random() * 2
+      });
+    }
+  },
+
+  // Light up a machine (when it starts processing)
+  activateMachine(machineIdx) {
+    if (this.nodes[machineIdx]) {
+      this.nodes[machineIdx].targetGlow = 1;
+      this.nodes[machineIdx].processing = true;
+    }
+  },
+
+  // Deactivate machine
+  deactivateMachine(machineIdx) {
+    if (this.nodes[machineIdx]) {
+      this.nodes[machineIdx].targetGlow = 0;
+      this.nodes[machineIdx].processing = false;
+      // Burst particles on completion
+      const n = this.nodes[machineIdx];
+      for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2;
+        this.particles.push({
+          x: n.x, y: n.y, vx: Math.cos(angle) * 50, vy: Math.sin(angle) * 50,
+          life: 0.8, maxLife: 0.8, color: '#22c55e', size: 2 + Math.random() * 2
+        });
+      }
+    }
+  },
+
+  // Send to ALL machines (the big moment)
+  sendToAll(color) {
+    this.centerNode.glow = 1.5;
+    this.nodes.forEach((_, i) => {
+      setTimeout(() => this.sendPulse(i, color || '#d97706'), i * 80);
+    });
+    // Big burst at center
+    for (let i = 0; i < 20; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 30 + Math.random() * 80;
+      this.particles.push({
+        x: this.centerNode.x, y: this.centerNode.y,
+        vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        life: 1 + Math.random() * 0.5, maxLife: 1.5, color: '#d97706', size: 3 + Math.random() * 3
+      });
+    }
+  },
+
+  update(dt) {
+    // Update pulses
+    this.pulses = this.pulses.filter(p => {
+      p.t += p.speed * dt;
+      // Store trail positions
+      const wire = this.wires[p.wireIdx];
+      const pos = this.bezierPoint(wire.from, wire.cp, wire.to, Math.min(p.t, 1));
+      p.trail.push({ ...pos, age: 0 });
+      if (p.trail.length > 12) p.trail.shift();
+      p.trail.forEach(t => t.age += dt);
+
+      if (p.t >= 1) {
+        // Pulse arrived — activate machine
+        this.activateMachine(p.wireIdx);
+        return false;
+      }
+      return true;
+    });
+
+    // Update wire glow (fade out)
+    this.wires.forEach(w => { w.glow = Math.max(0, w.glow - dt * 0.8); });
+
+    // Update node glow (ease toward target)
+    this.nodes.forEach(n => {
+      n.glow += (n.targetGlow - n.glow) * dt * 4;
+      if (n.processing) n.glow = 0.5 + Math.sin(performance.now() * 0.004) * 0.3;
+    });
+    this.centerNode.glow = Math.max(0.2, this.centerNode.glow - dt * 0.5);
+
+    // Update particles
+    this.particles = this.particles.filter(p => {
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.vx *= 0.97; p.vy *= 0.97;
+      p.life -= dt;
+      return p.life > 0;
+    });
+
+    // Spawn ambient floating particles occasionally
+    if (Math.random() < dt * 2) {
+      const w = this.canvas.width, h = this.canvas.height;
+      this.particles.push({
+        x: Math.random() * w, y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8,
+        life: 2 + Math.random() * 3, maxLife: 5, color: '#ffffff', size: 1
+      });
+    }
+  },
+
+  draw() {
+    const ctx = this.ctx;
+    const w = this.canvas.width, h = this.canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Subtle grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < w; x += 30) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+    for (let y = 0; y < h; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+
+    // Draw wires
+    this.wires.forEach((wire, i) => {
+      ctx.beginPath();
+      ctx.moveTo(wire.from.x, wire.from.y);
+      ctx.quadraticCurveTo(wire.cp.x, wire.cp.y, wire.to.x, wire.to.y);
+      const baseAlpha = 0.08 + wire.glow * 0.4;
+      ctx.strokeStyle = `rgba(255,255,255,${baseAlpha})`;
+      ctx.lineWidth = 1.5 + wire.glow * 2;
+      ctx.stroke();
+      // Glow layer
+      if (wire.glow > 0.1) {
+        ctx.strokeStyle = this.nodes[i]?.color || '#d97706';
+        ctx.globalAlpha = wire.glow * 0.3;
+        ctx.lineWidth = 4 + wire.glow * 4;
+        ctx.beginPath();
+        ctx.moveTo(wire.from.x, wire.from.y);
+        ctx.quadraticCurveTo(wire.cp.x, wire.cp.y, wire.to.x, wire.to.y);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    });
+
+    // Draw pulses + trails
+    this.pulses.forEach(p => {
+      // Trail
+      p.trail.forEach((t, i) => {
+        const alpha = (1 - t.age) * (i / p.trail.length) * 0.6;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, p.size * (i / p.trail.length), 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.max(0, alpha);
+        ctx.fill();
+      });
+      // Head
+      const wire = this.wires[p.wireIdx];
+      const pos = this.bezierPoint(wire.from, wire.cp, wire.to, p.t);
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+      // Bright core
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, p.size * 0.4, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+    });
+
+    // Draw particles
+    this.particles.forEach(p => {
+      const alpha = (p.life / p.maxLife) * 0.5;
+      ctx.globalAlpha = Math.max(0, alpha);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    // Draw machine nodes
+    this.nodes.forEach(n => {
+      // Glow halo
+      if (n.glow > 0.05) {
+        const grad = ctx.createRadialGradient(n.x, n.y, n.size, n.x, n.y, n.size + 20 + n.glow * 15);
+        grad.addColorStop(0, n.color + Math.round(n.glow * 60).toString(16).padStart(2, '0'));
+        grad.addColorStop(1, 'transparent');
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.size + 20 + n.glow * 15, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+      // Machine body
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.size, 0, Math.PI * 2);
+      ctx.fillStyle = n.processing ? n.color : '#1a1a24';
+      ctx.fill();
+      ctx.strokeStyle = n.color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // OS icon
+      const icon = n.os === 'macOS' ? '' : n.os === 'Windows' ? '⊞' : '🐧';
+      ctx.font = `${n.size * 0.8}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff';
+      ctx.fillText(icon, n.x, n.y);
+      // Name label
+      ctx.font = '10px Inter, sans-serif';
+      ctx.fillStyle = n.color;
+      ctx.fillText(n.name, n.x, n.y + n.size + 14);
+    });
+
+    // Draw center node (HQ)
+    const cn = this.centerNode;
+    // Glow
+    const cGrad = ctx.createRadialGradient(cn.x, cn.y, cn.size, cn.x, cn.y, cn.size + 30 + cn.glow * 20);
+    cGrad.addColorStop(0, '#d97706' + Math.round(cn.glow * 50).toString(16).padStart(2, '0'));
+    cGrad.addColorStop(1, 'transparent');
+    ctx.beginPath();
+    ctx.arc(cn.x, cn.y, cn.size + 30 + cn.glow * 20, 0, Math.PI * 2);
+    ctx.fillStyle = cGrad;
+    ctx.fill();
+    // Hexagon body
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 - Math.PI / 6;
+      const method = i === 0 ? 'moveTo' : 'lineTo';
+      ctx[method](cn.x + Math.cos(a) * cn.size, cn.y + Math.sin(a) * cn.size);
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#1a1208';
+    ctx.fill();
+    ctx.strokeStyle = '#d97706';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.font = 'bold 10px Inter, sans-serif';
+    ctx.fillStyle = '#d97706';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('HQ', cn.x, cn.y);
+  },
+
+  bezierPoint(p0, cp, p1, t) {
+    const mt = 1 - t;
+    return {
+      x: mt * mt * p0.x + 2 * mt * t * cp.x + t * t * p1.x,
+      y: mt * mt * p0.y + 2 * mt * t * cp.y + t * t * p1.y
+    };
+  }
+};
+
 // ── Game State ──
 const G = {
   phase: 0, // 0=company, 1=machines, 2=network, 3=kb, 4=play
@@ -426,6 +760,7 @@ const G = {
   usedInbox: false,
   usedInstant: false,
   usedFleetWide: false,
+  showViz: true,
   currentRank: 0,
   showCelebration: null,
   skynetTriggered: false,
@@ -556,6 +891,22 @@ function render() {
   document.querySelectorAll('.btn, .machine-slot, .fleet-card, .inbox-tab, .phase-dot').forEach(el => {
     if (!el._sfx) { el._sfx = true; el.addEventListener('click', sfxClick); }
   });
+
+  // Init fleet visualization if canvas exists
+  const vizCanvas = document.getElementById('fleet-viz-canvas');
+  if (vizCanvas && G.phase === 5 && G.showViz) {
+    // Scale canvas for crisp rendering
+    const rect = vizCanvas.getBoundingClientRect();
+    vizCanvas.width = rect.width * (window.devicePixelRatio || 1);
+    vizCanvas.height = 400 * (window.devicePixelRatio || 1);
+    vizCanvas.style.height = '400px';
+    const ctx = vizCanvas.getContext('2d');
+    ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+    FleetViz.canvas = vizCanvas;
+    FleetViz.ctx = ctx;
+    FleetViz.enabled = true;
+    FleetViz.init(G.machines);
+  }
 }
 
 function renderPhaseDots() {
@@ -925,6 +1276,13 @@ function renderPlay() {
       </div>
     </div>
 
+    ${G.showViz ? `
+    <div class="fleet-viz-container">
+      <button class="fleet-viz-toggle" onclick="G.showViz=false;FleetViz.stop();render()">✕ Hide Viz</button>
+      <canvas id="fleet-viz-canvas" class="fleet-viz-canvas" width="800" height="400"></canvas>
+    </div>
+    ` : `<div style="text-align:right;margin-bottom:8px"><button class="btn btn-sm" style="font-size:11px" onclick="G.showViz=true;render()">👁 Show Fleet Viz</button></div>`}
+
     <div class="fleet-grid">
       ${G.machines.map(m => `
         <div class="fleet-card" data-machine="${m.name}" onclick="selectMachine('${m.name}')">
@@ -1049,6 +1407,7 @@ function dispatchFleetWide(task, points) {
   learnConcept('fleet-wide-dispatch');
   addActivity('dispatch', `🌐 <strong>Fleet-wide:</strong> "${task}" → ${G.machines.length} machines`);
   addScore(points, `Fleet-wide: ${task}`);
+  if (FleetViz.enabled) FleetViz.sendToAll('#d97706');
 
   G.machines.forEach((m, i) => {
     setTimeout(() => {
@@ -1063,6 +1422,7 @@ function dispatchFleetWide(task, points) {
         G.hooksFired += 2;
         addActivity('complete', `✅ <strong>${m.name}</strong>: ${response.split('\\n')[0].slice(0, 80)}`);
         sfxComplete();
+        if (FleetViz.enabled) FleetViz.deactivateMachine(i);
         checkRank();
         render();
       }, 1500 + Math.random() * 2000);
@@ -1186,6 +1546,8 @@ function selectMachine(name) {
 function dispatchInbox(target, task) {
   if (!target || !task) return;
   const machine = G.machines.find(m => m.name === target);
+  const machineIdx = G.machines.indexOf(machine);
+  if (FleetViz.enabled && machineIdx >= 0) FleetViz.sendPulse(machineIdx, machine.color);
   const inbox = G.kb.inboxes[target.toLowerCase()] || [];
   inbox.push({ task, from: 'you', time: new Date().toISOString() });
   G.kb.inboxes[target.toLowerCase()] = inbox;
@@ -1224,6 +1586,7 @@ function dispatchInbox(target, task) {
 
       sfxComplete();
       G.score += 10;
+      if (FleetViz.enabled && machineIdx >= 0) FleetViz.deactivateMachine(machineIdx);
       showToast(`✅ ${target} (+10 pts)`, response.split('\n')[0], 'success');
       checkRank();
       render();
@@ -1236,6 +1599,8 @@ function dispatchInbox(target, task) {
 function dispatchInstant(target, task) {
   if (!target || !task) return;
   const machine = G.machines.find(m => m.name === target);
+  const machineIdx = G.machines.indexOf(machine);
+  if (FleetViz.enabled && machineIdx >= 0) FleetViz.sendPulse(machineIdx, machine.color);
 
   addActivity('dispatch', `⚡ <strong>Instant dispatch</strong> → ${target}: "${task}"`);
   addActivity('hook', `🔗 SSH to ${target} (${machine.os}) — running <code>claude -p "${task}" --max-turns 15</code>`);
@@ -1260,6 +1625,7 @@ function dispatchInstant(target, task) {
 
     sfxComplete();
     G.score += 15;
+    if (FleetViz.enabled && machineIdx >= 0) FleetViz.deactivateMachine(machineIdx);
     showToast(`✅ ${target} (+15 pts)`, response.split('\n')[0], 'success');
     checkRank();
     render();
