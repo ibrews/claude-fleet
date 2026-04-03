@@ -165,6 +165,11 @@
     100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
   }
 
+  /* ── Dice Randomizer ── */
+  .dice-btn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--dim); cursor: pointer; font-size: 12px; transition: all 0.2s; }
+  .dice-btn:hover { color: var(--accent); border-color: var(--accent); transform: rotate(15deg); }
+  .dice-btn:active { transform: rotate(360deg); transition: transform 0.3s; }
+
   /* ── Footer ── */
   .footer { text-align: center; padding: 40px 0; color: var(--dim); font-size: 13px; }
   .footer a { color: var(--accent); text-decoration: none; }
@@ -224,32 +229,59 @@ function sfxRankUp() { [523,659,784,1047].forEach((f,i) => setTimeout(() => play
 function sfxSkynet() { [220,196,165,147].forEach((f,i) => setTimeout(() => playNote(f, 0.4, 'sawtooth', 0.04), i * 200)); }
 
 // Lo-fi chiptune melody — soft, melodic, not repetitive
-const MELODY = [
-  // Phrase 1 (dreamy)
-  [329,0.4],[392,0.4],[523,0.6],[494,0.3],[440,0.4],[392,0.6],[0,0.4],
-  [329,0.3],[349,0.3],[440,0.6],[392,0.4],[349,0.3],[329,0.6],[0,0.6],
-  // Phrase 2 (hopeful)
-  [262,0.4],[329,0.4],[392,0.6],[440,0.3],[523,0.6],[494,0.3],[440,0.4],[392,0.8],[0,0.6],
-  // Phrase 3 (gentle)
-  [349,0.3],[392,0.4],[440,0.6],[523,0.4],[494,0.6],[440,0.3],[392,0.4],[349,0.8],[0,0.8],
-  // Phrase 4 (resolution)
-  [262,0.4],[329,0.3],[392,0.5],[349,0.3],[329,0.6],[262,0.8],[0,1.2],
-];
+// Generative lo-fi chiptune — never repeats exactly
+// Uses pentatonic scale + Markov-ish transitions for natural melodic flow
+const SCALES = {
+  dreamy: [262, 294, 330, 392, 440, 523, 587, 659, 784],   // C pentatonic over 2 octaves
+  moody:  [220, 262, 294, 330, 392, 440, 523, 587, 659],   // lower range
+  bright: [330, 392, 440, 523, 587, 659, 784, 880, 1047],  // higher range
+};
+const DURATIONS = [0.25, 0.3, 0.35, 0.4, 0.5, 0.6, 0.8];
+
+let musicState = { scaleIdx: 0, noteIdx: 4, phraseCtr: 0, restChance: 0.12 };
+
+function generateNote() {
+  const scaleNames = Object.keys(SCALES);
+  // Shift scale mood every 16-24 notes
+  if (musicState.phraseCtr > 16 + Math.random() * 8) {
+    musicState.scaleIdx = (musicState.scaleIdx + 1) % scaleNames.length;
+    musicState.phraseCtr = 0;
+    musicState.restChance = 0.08 + Math.random() * 0.1;
+  }
+  const scale = SCALES[scaleNames[musicState.scaleIdx]];
+
+  // Melodic movement: favor small steps, occasional leaps
+  const step = Math.random() < 0.7 ? (Math.random() < 0.5 ? -1 : 1) : (Math.random() < 0.5 ? -2 : 2);
+  musicState.noteIdx = Math.max(0, Math.min(scale.length - 1, musicState.noteIdx + step));
+
+  // Occasional rest for breathing room
+  const isRest = Math.random() < musicState.restChance;
+  const freq = isRest ? 0 : scale[musicState.noteIdx];
+  const dur = DURATIONS[Math.floor(Math.random() * DURATIONS.length)];
+
+  // Vary rest probability (more rests after long phrases)
+  musicState.restChance = isRest ? 0.05 : musicState.restChance + 0.01;
+  musicState.phraseCtr++;
+
+  return [freq, dur];
+}
 
 function startMusic() {
   if (musicPlaying || !audioCtx) return;
   musicPlaying = true;
-  let noteIdx = 0;
   function playNext() {
     if (!musicPlaying) return;
-    const [freq, dur] = MELODY[noteIdx % MELODY.length];
+    const [freq, dur] = generateNote();
     if (freq > 0) {
-      playNote(freq, dur * 0.8, 'triangle', 0.025);
-      // Soft harmony
-      playNote(freq * 0.5, dur * 1.2, 'sine', 0.015);
+      // Main voice
+      const wave = ['triangle', 'sine', 'triangle'][musicState.scaleIdx];
+      playNote(freq, dur * 0.8, wave, 0.02 + Math.random() * 0.01);
+      // Soft sub-octave pad
+      playNote(freq * 0.5, dur * 1.4, 'sine', 0.01);
+      // Occasional sparkle (high octave, very quiet)
+      if (Math.random() < 0.15) playNote(freq * 2, dur * 0.4, 'sine', 0.008);
     }
-    noteIdx++;
-    musicInterval = setTimeout(playNext, dur * 500);
+    musicInterval = setTimeout(playNext, dur * 480 + Math.random() * 40);
   }
   playNext();
 }
@@ -305,6 +337,59 @@ const INDUSTRY_OPTIONS = ['AI/ML Startup', 'Game Studio', 'Creative Agency', 'En
 
 const COLORS = ['#6366f1', '#f97316', '#ef4444', '#22c55e', '#3b82f6', '#eab308', '#a855f7', '#ec4899'];
 
+// ── Random generators for dice button ──
+const COMPANY_NAMES = ['Nebula Labs', 'Vortex AI', 'Iron Forge', 'Quantum Leap', 'Dark Matter', 'Pixel Storm', 'Deep Signal', 'Nova Core', 'Lunar Tide', 'Cipher Works', 'Ghost Protocol', 'Black Mesa', 'Aperture Science', 'Stark Industries', 'Weyland Corp', 'Tyrell Systems', 'Cyberdyne', 'Umbrella Corp', 'Gekko Capital', 'Pied Piper'];
+const MACHINE_NAMES = ['Fortress', 'Archon', 'Phantom', 'Titan', 'Obelisk', 'Sentinel', 'Nexus', 'Spectre', 'Colossus', 'Hydra', 'Atlas', 'Cerberus', 'Omega', 'Vanguard', 'Eclipse', 'Monolith', 'Tempest', 'Wraith', 'Bastion', 'Goliath'];
+const TASK_IDEAS = ['check disk space', 'run the test suite', 'deploy to staging', 'check GPU utilization', 'git status on all repos', 'list running processes', 'backup the database', 'check network latency', 'update dependencies', 'profile memory usage', 'scan for large files', 'check SSL certificates', 'restart the web server', 'pull latest on all projects', 'benchmark the GPU', 'check docker containers', 'analyze log files', 'clear temp files over 1GB', 'check model inference speed', 'report uptime and load average'];
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function pickUnused(arr, existing) { const unused = arr.filter(x => !existing.includes(x)); return unused.length > 0 ? pick(unused) : pick(arr) + '-' + Math.floor(Math.random()*99); }
+
+function randomizeCompany() {
+  sfxClick();
+  G.company.name = pick(COMPANY_NAMES);
+  G.company.industry = pick(INDUSTRY_OPTIONS);
+  render();
+}
+
+function randomizeMachine() {
+  sfxClick();
+  const existing = G.machines.map(m => m.name);
+  G.machines.push({
+    name: pickUnused(MACHINE_NAMES, existing),
+    os: pick(OS_OPTIONS),
+    gpu: pick(GPU_OPTIONS.filter(g => g !== 'None')),
+    role: pick(ROLE_OPTIONS),
+    color: COLORS[G.machines.length % COLORS.length],
+    status: 'offline'
+  });
+  render();
+}
+
+function randomizeFleet() {
+  sfxClick();
+  G.machines = [];
+  const count = 2 + Math.floor(Math.random() * 4); // 2-5 machines
+  for (let i = 0; i < count; i++) {
+    const existing = G.machines.map(m => m.name);
+    G.machines.push({
+      name: pickUnused(MACHINE_NAMES, existing),
+      os: pick(OS_OPTIONS),
+      gpu: pick(GPU_OPTIONS.filter(g => g !== 'None')),
+      role: pick(ROLE_OPTIONS),
+      color: COLORS[i % COLORS.length],
+      status: 'offline'
+    });
+  }
+  render();
+}
+
+function randomizeTask() {
+  sfxClick();
+  const input = document.getElementById('dispatch-task');
+  if (input) input.value = pick(TASK_IDEAS);
+}
+
 // ── Simulated Claude responses based on task + machine role ──
 const TASK_RESPONSES = {
   'check disk space': (m) => `${m.name}: ${Math.floor(Math.random()*800+200)} GB free of ${m.gpu.includes('None') ? '512 GB' : '2 TB'} (${Math.floor(Math.random()*60+10)}% used).\nLargest: Projects/ (${Math.floor(Math.random()*200+50)} GB), Models/ (${Math.floor(Math.random()*300+100)} GB)`,
@@ -359,7 +444,7 @@ function renderPhase() {
 function renderCompanySetup() {
   return `
     <div class="card">
-      <div class="card-header"><h2>Step 1: Who are you?</h2></div>
+      <div class="card-header"><h2>Step 1: Who are you?</h2><button class="dice-btn" onclick="randomizeCompany()">🎲 Randomize</button></div>
       <div class="card-body">
         <div class="concept-tooltip">
           <strong>In the real world:</strong> claude-fleet works for any team with multiple computers.
@@ -392,7 +477,11 @@ function renderMachineSetup() {
     <div class="card">
       <div class="card-header">
         <h2>Step 2: Build Your Fleet</h2>
-        <span style="color:var(--dim);font-size:13px">${G.machines.length} machine${G.machines.length !== 1 ? 's' : ''}</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="dice-btn" onclick="randomizeMachine()">🎲 +1 Random</button>
+          <button class="dice-btn" onclick="randomizeFleet()">🎲 Random Fleet</button>
+          <span style="color:var(--dim);font-size:13px">${G.machines.length} machine${G.machines.length !== 1 ? 's' : ''}</span>
+        </div>
       </div>
       <div class="card-body">
         <div class="concept-tooltip">
@@ -600,6 +689,7 @@ function renderPlay() {
             ${G.machines.map(m => `<option value="${m.name}">${m.name}</option>`).join('')}
           </select>
           <input id="dispatch-task" placeholder="e.g. check disk space, run tests, deploy to staging..." />
+          <button class="dice-btn" onclick="randomizeTask()" title="Random task">🎲</button>
           <button class="btn btn-primary" id="btn-dispatch-inbox">📬 Inbox</button>
           <button class="btn btn-green" id="btn-dispatch-instant">⚡ Instant</button>
         </div>
