@@ -101,7 +101,20 @@ function buildClaudeCmd(opts) {
   }
 
   if (opts.json) cmd += ' --output-format json';
-  if (opts.tools) cmd += ` --allowedTools "${opts.tools}"`;
+  if (opts.tools) {
+    // Validate tools against whitelist: only alphanumeric, commas, spaces, hyphens, underscores
+    if (!/^[a-zA-Z0-9,\s_-]+$/.test(opts.tools)) {
+      console.error(`[fleet-task] Invalid --tools value: contains disallowed characters.`);
+      console.error(`[fleet-task] Only alphanumeric characters, commas, spaces, hyphens, and underscores are allowed.`);
+      process.exit(1);
+    }
+    // Reject shell metacharacters explicitly as a defense-in-depth check
+    if (/[;|&`$(){}!<>?*\[\]\\]/.test(opts.tools)) {
+      console.error(`[fleet-task] Rejected --tools value: shell metacharacters detected.`);
+      process.exit(1);
+    }
+    cmd += ` --allowedTools "${opts.tools}"`;
+  }
   if (opts.model) cmd += ` --model "${opts.model}"`;
   if (opts.bare) cmd += ' --bare';
 

@@ -100,3 +100,65 @@ git checkout --theirs . && git add -A && git rebase --continue
 2. Is the machine awake/powered on?
 3. Is SSH enabled? `tailscale up --ssh`
 4. Test basic connectivity: `ping <machine-name>`
+
+## Claude Desktop permission prompts blocking automation
+
+**Symptom:** Claude Desktop shows permission prompts (tool approval dialogs) during headless or automated sessions, causing them to hang indefinitely.
+
+**Cause:** Claude Code requires explicit approval for certain tools by default.
+
+**Fix:** Enable `bypassPermissions` mode in `~/.claude/settings.json`:
+```json
+{
+  "permissions": {
+    "allow": ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
+    "bypassPermissions": true
+  }
+}
+```
+
+This skips interactive permission prompts. Only enable this on machines you trust — it allows Claude to run any tool without asking.
+
+## "Session not found" when clicking Telegram approval buttons
+
+**Symptom:** You click an inline button (approve/reject) in Telegram but get "Session not found" or "Expired."
+
+**Cause:** The approval session timed out. By default, callback sessions expire after a few minutes. If the bot restarts or enough time passes, the session context is lost.
+
+**Fix:** Use `bypassPermissions` mode (above) to avoid needing Telegram approval in the first place. If you need approval workflows, ensure the bot stays running persistently and process approvals quickly.
+
+## Inbox not being processed
+
+**Symptom:** You pushed a task to `inbox/alpha.md` and triggered the machine, but nothing happened. The inbox item is still pending.
+
+**Causes:**
+1. **Machine name mismatch.** The script looks for `inbox/<machine-name>.md`. If the hostname doesn't match the inbox filename, it finds nothing.
+   - **Fix:** Set `FLEET_MACHINE_NAME` explicitly. See [Machine Name Detection](07-hooks.md#machine-name-detection).
+2. **KB not pulled.** The machine's local copy of `~/knowledge` is stale.
+   - **Fix:** Verify with `cd ~/knowledge && git log --oneline -1` — does it show the commit with your inbox item?
+3. **Hook not installed.** The SessionStart hook isn't configured.
+   - **Fix:** Check `~/.claude/settings.json` for the SessionStart hook entry.
+
+## Git push failures
+
+**Symptom:** The session-end hook (`kb-session-end.sh`) fails to push changes. Work may be committed locally but not shared.
+
+**Causes and fixes:**
+
+1. **Network unavailable.** The machine is offline or Tailscale is down.
+   - **Fix:** Check `tailscale status`. Changes are committed locally and will push on the next successful sync.
+
+2. **Credential issues.** SSH key not loaded, expired token, etc.
+   - **Fix:** Test manually: `cd ~/knowledge && git push`. Fix any auth errors.
+
+3. **Merge conflicts.** Another machine pushed first and the rebase failed.
+   - **Fix:** Pull and resolve manually:
+   ```bash
+   cd ~/knowledge
+   git pull --rebase
+   # Resolve any conflicts, then:
+   git push
+   ```
+
+4. **Remote rejected (branch protection, etc.).**
+   - **Fix:** Ensure the git user has push access to the KB repo's default branch.

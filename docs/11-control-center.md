@@ -1,5 +1,7 @@
 # Fleet Control Center
 
+> **Note:** The Control Center source code (`server.js`, `public/index.html`) is **not included** in this repo. It is a separate Node.js application that you create or obtain independently. This document describes the architecture, API, and setup so you can build or configure your own instance. You will need to create `server.js` (Express + SQLite REST API) and `public/index.html` (single-page dashboard) yourself, or use the reference implementation if one is provided to you separately.
+
 A centralized web dashboard for fleet management — machine status, inbox overview, task dispatch, and development tracking.
 
 ## Overview

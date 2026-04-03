@@ -14,7 +14,12 @@ LOCK_FILE="/tmp/fleet-sync.lock"
 # Prevent concurrent runs
 if [ -f "$LOCK_FILE" ]; then
     # macOS stat uses -f %m, Linux uses -c %Y
-    LOCK_AGE=$(( $(date +%s) - $(stat -f %m "$LOCK_FILE" 2>/dev/null || stat -c %Y "$LOCK_FILE" 2>/dev/null || echo 0) ))
+    LOCK_MTIME=$(stat -f %m "$LOCK_FILE" 2>/dev/null || stat -c %Y "$LOCK_FILE" 2>/dev/null || echo "")
+    if [ -z "$LOCK_MTIME" ]; then
+        # stat failed entirely — stale lock, remove it
+        rm -f "$LOCK_FILE"
+    fi
+    LOCK_AGE=$(( $(date +%s) - ${LOCK_MTIME:-0} ))
     if [ "$LOCK_AGE" -lt 60 ]; then
         exit 0
     fi
@@ -25,8 +30,15 @@ trap "rm -f '$LOCK_FILE'" EXIT
 
 # Quick git pull (quiet, fast-forward only)
 cd "$KB_DIR" || exit 1
-git fetch origin master --quiet 2>/dev/null || git fetch origin main --quiet 2>/dev/null
-git merge --ff-only FETCH_HEAD --quiet 2>/dev/null
+BRANCH=""
+if git fetch origin master --quiet 2>/dev/null; then
+    BRANCH="master"
+elif git fetch origin main --quiet 2>/dev/null; then
+    BRANCH="main"
+fi
+if [ -n "$BRANCH" ]; then
+    git merge --ff-only "origin/$BRANCH" --quiet 2>/dev/null
+fi
 
 # Check for notification files
 if [ -d "$NOTIF_DIR" ]; then

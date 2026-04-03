@@ -130,13 +130,14 @@ See [docs/03-claude-code-install.md](docs/03-claude-code-install.md) for platfor
 
 ### 4. Install the hooks
 
-Copy the scripts to `~/claude-fleet/` on each machine:
+Clone this repo and copy the scripts to `~/claude-fleet/` on each machine:
 
 ```bash
+git clone https://github.com/ibrews/claude-fleet.git ~/claude-fleet-repo
 mkdir -p ~/claude-fleet
-cp scripts/kb-inbox-check.sh ~/claude-fleet/
-cp scripts/kb-session-end.sh ~/claude-fleet/
-cp scripts/notify-human.js ~/claude-fleet/
+cp ~/claude-fleet-repo/scripts/kb-inbox-check.sh ~/claude-fleet/
+cp ~/claude-fleet-repo/scripts/kb-session-end.sh ~/claude-fleet/
+cp ~/claude-fleet-repo/scripts/notify-human.js ~/claude-fleet/
 chmod +x ~/claude-fleet/kb-inbox-check.sh ~/claude-fleet/kb-session-end.sh
 ```
 
@@ -221,13 +222,13 @@ node scripts/fleet-task.js beta "Review this PR" --model claude-sonnet-4-6
 
 All hooks have Node.js equivalents for Windows machines (no bash/Python dependency):
 
-| Bash (macOS/Linux) | Node.js (Windows) |
-|--------------------|--------------------|
+| Bash (macOS/Linux) | Node.js (cross-platform) |
+|--------------------|--------------------------|
 | `kb-inbox-check.sh` | `kb-inbox-check.js` |
 | `kb-session-end.sh` | `kb-session-end.js` |
 | `check-notifications.sh` | `check-notifications.js` |
 | `fleet-sync-notifications.sh` | `fleet-sync-notifications.js` |
-| `send-notification.js` | `send-notification-node.js` |
+| `send-notification.sh` | `send-notification.js` |
 
 See [templates/settings-windows.json](templates/settings-windows.json) for the Windows hook configuration.
 

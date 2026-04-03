@@ -34,8 +34,13 @@ TIMESTAMP=$(date +%H%M)
 git commit -m "chore(kb): auto-sync from $MACHINE_NAME session-end $TODAY-$TIMESTAMP" --quiet 2>/dev/null || true
 
 # Pull (rebase to avoid merge commits) and push
-# Don't fail the hook if network is down
-git pull --rebase origin master --quiet 2>/dev/null || true
-git push origin master --quiet 2>/dev/null || true
+# Log failures so users can debug (hooks run silently)
+LOG_FILE="/tmp/fleet-session-end.log"
+git pull --rebase origin master --quiet 2>>"$LOG_FILE" || {
+    echo "[$(date +%Y-%m-%dT%H:%M:%S)] git pull --rebase failed (exit $?)" >> "$LOG_FILE"
+}
+if ! git push origin master --quiet 2>>"$LOG_FILE"; then
+    echo "[$(date +%Y-%m-%dT%H:%M:%S)] git push failed (exit $?) — KB changes committed locally but not pushed" >> "$LOG_FILE"
+fi
 
 exit 0

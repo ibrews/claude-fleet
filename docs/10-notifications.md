@@ -128,7 +128,10 @@ node ~/claude-fleet/send-notification.js alpha "Task complete" "Built the APK an
 Or from a bash script:
 
 ```bash
-~/claude-fleet/send-notification.sh alpha "Task complete" "Built the APK and uploaded it"
+# Bash:
+~/claude-fleet/send-notification.sh alpha "Task complete" "Built the APK"
+# Or Node.js (cross-platform):
+node ~/claude-fleet/send-notification.js alpha "Task complete" "Built the APK"
 ```
 
 ## Sending Notifications from Hooks

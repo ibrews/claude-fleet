@@ -27,8 +27,21 @@ if [ ${#NOTIF_FILES[@]} -eq 0 ]; then
     exit 0
 fi
 
+# Detect Python — prefer python3, fall back to python
+PY=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo "")
+
+if [ -z "$PY" ]; then
+    # No Python available — output minimal JSON without it
+    COUNT=${#NOTIF_FILES[@]}
+    CONTEXT="--- FLEET NOTIFICATION (${COUNT} message(s)) ---\nCheck /tmp/fleet-pending/ for details.\n--- END FLEET NOTIFICATION ---\nAcknowledge these notifications to the user and take any appropriate action."
+    # Clean up files
+    for f in "${NOTIF_FILES[@]}"; do rm -f "$f"; done
+    printf '{"hookSpecificOutput":{"additionalContext":"%s"}}' "$CONTEXT"
+    exit 0
+fi
+
 # Build context from all pending notifications using Python for proper JSON
-python3 - "${NOTIF_FILES[@]}" <<'PYEOF'
+"$PY" - "${NOTIF_FILES[@]}" <<'PYEOF'
 import json, sys, os
 
 files = sys.argv[1:]

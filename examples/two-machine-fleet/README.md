@@ -39,7 +39,17 @@ git clone git@github.com:you/my-fleet-kb.git ~/knowledge
 
 ### 3. Install hooks on both machines
 
-Copy `kb-inbox-check.sh`, `kb-session-end.sh`, and `notify-human.js` to `~/claude-fleet/` on each machine. Update `~/.claude/settings.json` per the template.
+Clone the claude-fleet repo and copy the scripts to `~/claude-fleet/` on each machine:
+```bash
+git clone https://github.com/ibrews/claude-fleet.git ~/claude-fleet-repo
+mkdir -p ~/claude-fleet
+cp ~/claude-fleet-repo/scripts/kb-inbox-check.sh ~/claude-fleet/
+cp ~/claude-fleet-repo/scripts/kb-session-end.sh ~/claude-fleet/
+cp ~/claude-fleet-repo/scripts/notify-human.js ~/claude-fleet/
+chmod +x ~/claude-fleet/kb-inbox-check.sh ~/claude-fleet/kb-session-end.sh
+```
+
+Update `~/.claude/settings.json` per the template in `~/claude-fleet-repo/templates/settings.json`.
 
 ### 4. Configure the fleet trigger
 

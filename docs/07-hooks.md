@@ -122,6 +122,28 @@ On Windows, `bash` in the hook command may resolve to WSL's bash (which has a di
 
 For the `$HOME` or `$USERPROFILE` variable in hook commands, Claude Code expands these before execution on all platforms.
 
+## Machine Name Detection
+
+Fleet scripts need to know your machine's name to find the right inbox file (e.g., `inbox/alpha.md`).
+
+Detection order:
+1. `FLEET_MACHINE_NAME` env var (highest priority)
+2. `KB_MACHINE_NAME` env var (legacy/fallback)
+3. System hostname
+
+Set it explicitly in your crontab or hook environment to avoid hostname mismatches:
+
+```bash
+export FLEET_MACHINE_NAME=alpha
+```
+
+In a crontab entry:
+```
+* * * * * FLEET_MACHINE_NAME=alpha ~/claude-fleet/fleet-sync-notifications.sh >> /tmp/fleet-sync.log 2>&1
+```
+
+If your inbox isn't being processed, this is the first thing to check. Run `hostname` on the machine and compare it to the inbox filename in your KB. If they don't match, set `FLEET_MACHINE_NAME` explicitly.
+
 ## Full settings.json
 
 See [templates/settings.json](../templates/settings.json) for a complete configuration with all hooks.

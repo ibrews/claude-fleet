@@ -15,7 +15,8 @@ set -euo pipefail
 KB_DIR="${KB_DIR:-$HOME/knowledge}"
 
 # Machine name — used to find the right inbox file
-# Override with KB_MACHINE_NAME env var, or it auto-detects from hostname
+# IMPORTANT: Set KB_MACHINE_NAME env var explicitly for reliable operation.
+# If unset, falls back to hostname which may not match your inbox filename.
 MACHINE_NAME="${KB_MACHINE_NAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
 
 # Map hostnames to inbox filenames
@@ -62,12 +63,16 @@ After processing each item:
 # Output JSON that Claude Code's hook system understands
 # - systemMessage: shown to the user in the terminal
 # - additionalContext: injected into Claude's context window
+# Detect Python — prefer python3, fall back to python
 PY=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo "")
 if [ -z "$PY" ]; then
+    # No Python available — output minimal JSON without it
+    printf '{"systemMessage":"📬 %s pending inbox item(s) found","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"You have %s pending inbox items in %s. Check the file manually."}}' \
+        "$COUNT" "$COUNT" "$INBOX_FILE"
     exit 0
 fi
 
-$PY -c "
+"$PY" -c "
 import json, sys
 context = sys.stdin.read()
 print(json.dumps({
