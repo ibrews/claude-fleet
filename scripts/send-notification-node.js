@@ -7,7 +7,6 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 
 const args = process.argv.slice(2);
 if (args.length < 3) {
@@ -21,18 +20,10 @@ const message = messageParts.join(' ');
 const KB_DIR = path.join(process.env.USERPROFILE || process.env.HOME, 'knowledge');
 const NOTIF_DIR = path.join(KB_DIR, 'notifications', target);
 
-// Detect sender
-function getMachine() {
-  const h = os.hostname().toLowerCase();
-  if (h.includes('fortress') || h.includes('fort')) return 'fort';
-  if (h.includes('fridge') || h.includes('archie')) return 'archie';
-  if (h.includes('macbookpro') || h.includes('alexs-macbook')) return 'alex-mbp';
-  if (h.includes('mac-mini') || h.startsWith('sam')) return 'sam';
-  if (h.includes('lenovo')) return 'lenovo';
-  if (h.includes('toaster')) return 'toaster';
-  if (h.includes('theseus')) return 'theseus';
-  return h;
-}
+// Detect sender dynamically
+const MACHINE_NAME = process.env.FLEET_MACHINE_NAME
+  || process.env.KB_MACHINE_NAME
+  || require('os').hostname().toLowerCase().split('.')[0];
 
 // Create notification dir if needed
 fs.mkdirSync(NOTIF_DIR, { recursive: true });
@@ -43,7 +34,7 @@ const filename = `${timestamp}.json`;
 const filePath = path.join(NOTIF_DIR, filename);
 
 const notification = {
-  from: getMachine(),
+  from: MACHINE_NAME,
   target: target,
   subject: subject,
   message: message,

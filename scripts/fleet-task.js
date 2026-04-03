@@ -12,25 +12,58 @@
 //   --timeout <seconds>        SSH timeout (default: 300)
 //   --bg                       Fire and forget (don't wait for result)
 //
+// Machine configuration:
+//   Reads from ~/.claude-fleet/machines.json if it exists, otherwise uses
+//   FLEET_MACHINES env var (JSON string), e.g.:
+//     export FLEET_MACHINES='{"mybox":{"host":"mybox","ip":"10.0.0.1","os":"linux"}}'
+//
+// machines.json format:
+//   {
+//     "machine-name": { "host": "ssh-alias", "ip": "10.0.0.1", "os": "linux|macos|windows" },
+//     ...
+//   }
+//
 // Examples:
-//   node fleet-task.js archie "Find all TODO comments in the project"
-//   node fleet-task.js lenovo "Summarize this file" --tools "Read,Glob" --json
-//   node fleet-task.js archie "Build the APK" --timeout 600 --bg
+//   node fleet-task.js mybox "Find all TODO comments in the project"
+//   node fleet-task.js server "Summarize this file" --tools "Read,Glob" --json
 
 const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
-// Fleet machine SSH aliases (match ~/.ssh/config)
-const MACHINES = {
-  fort: { host: 'fort', ip: '100.108.138.115', os: 'windows' },
-  archie: { host: 'archie', ip: '100.103.192.41', os: 'windows' },
-  fridge: { host: 'archie', ip: '100.103.192.41', os: 'windows' }, // alias
-  lenovo: { host: 'lenovo', ip: '100.78.179.55', os: 'windows' },
-  theseus: { host: 'theseus', ip: '100.118.127.111', os: 'windows' },
-  toaster: { host: 'toaster', ip: '100.67.10.1', os: 'windows' },
-  sam: { host: 'sam-gateway', ip: '100.127.46.63', os: 'macos' },
-  'alex-mbp': { host: 'alex-mbp', ip: '100.95.59.11', os: 'macos' },
-};
+// Load fleet machines from config file or env var
+function loadMachines() {
+  // Try ~/.claude-fleet/machines.json first
+  const configPath = path.join(process.env.USERPROFILE || process.env.HOME, '.claude-fleet', 'machines.json');
+  if (fs.existsSync(configPath)) {
+    try {
+      return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    } catch (e) {
+      console.error(`[fleet-task] Error reading ${configPath}: ${e.message}`);
+      process.exit(1);
+    }
+  }
+
+  // Try FLEET_MACHINES env var
+  if (process.env.FLEET_MACHINES) {
+    try {
+      return JSON.parse(process.env.FLEET_MACHINES);
+    } catch (e) {
+      console.error(`[fleet-task] Error parsing FLEET_MACHINES env var: ${e.message}`);
+      process.exit(1);
+    }
+  }
+
+  console.error('[fleet-task] No machines configured.');
+  console.error('  Create ~/.claude-fleet/machines.json with your fleet machines, e.g.:');
+  console.error('  {');
+  console.error('    "mybox": { "host": "mybox", "ip": "10.0.0.1", "os": "linux" }');
+  console.error('  }');
+  console.error('  Or set FLEET_MACHINES env var to a JSON string with the same format.');
+  process.exit(1);
+}
+
+const MACHINES = loadMachines();
 
 function usage() {
   console.error('Usage: node fleet-task.js <machine> "<prompt>" [--tools T] [--json] [--model M] [--bare] [--timeout S] [--bg]');

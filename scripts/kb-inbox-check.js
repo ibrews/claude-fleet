@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 // kb-inbox-check.js — SessionStart hook
-// Pulls KB, reads inbox/fort.md, extracts pending items, outputs additionalContext.
+// Pulls KB, reads inbox/<machine>.md, extracts pending items, outputs additionalContext.
 
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+const MACHINE_NAME = process.env.FLEET_MACHINE_NAME
+  || process.env.KB_MACHINE_NAME
+  || require('os').hostname().toLowerCase().split('.')[0];
+
 const KB_DIR = path.join(process.env.USERPROFILE || process.env.HOME, 'knowledge');
-const INBOX = path.join(KB_DIR, 'inbox', 'fort.md');
+const INBOX = path.join(KB_DIR, 'inbox', `${MACHINE_NAME}.md`);
 const TRIGGERS_DIR = path.join(KB_DIR, 'triggers');
 
 try {
@@ -39,14 +43,14 @@ try {
   }
 } catch { }
 
-// Check triggers targeting fort
+// Check triggers targeting this machine
 try {
   const files = fs.readdirSync(TRIGGERS_DIR).filter(f => f.endsWith('.md') && f !== 'README.md');
   const pendingTriggers = [];
 
   for (const file of files) {
     const content = fs.readFileSync(path.join(TRIGGERS_DIR, file), 'utf8');
-    if (content.includes('target: fort') && content.includes('status: pending')) {
+    if (content.includes(`target: ${MACHINE_NAME}`) && content.includes('status: pending')) {
       const taskMatch = content.match(/## Task\s*\n([\s\S]*?)(?=\n## |$)/);
       const task = taskMatch ? taskMatch[1].trim().split('\n')[0] : file;
       pendingTriggers.push(task);
@@ -54,13 +58,13 @@ try {
   }
 
   if (pendingTriggers.length > 0) {
-    context += `\nTRIGGERS (${pendingTriggers.length} pending for fort):\n`;
+    context += `\nTRIGGERS (${pendingTriggers.length} pending for ${MACHINE_NAME}):\n`;
     pendingTriggers.forEach((t, i) => { context += `  ${i + 1}. ${t}\n`; });
   }
 } catch { }
 
 // Check notifications
-const notifDir = path.join(KB_DIR, 'notifications', 'fort');
+const notifDir = path.join(KB_DIR, 'notifications', MACHINE_NAME);
 try {
   const notifs = fs.readdirSync(notifDir).filter(f => f.endsWith('.json'));
   if (notifs.length > 0) {

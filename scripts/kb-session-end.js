@@ -5,22 +5,12 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
+
+const MACHINE_NAME = process.env.FLEET_MACHINE_NAME
+  || process.env.KB_MACHINE_NAME
+  || require('os').hostname().toLowerCase().split('.')[0];
 
 const KB_DIR = path.join(process.env.USERPROFILE || process.env.HOME, 'knowledge');
-
-// Detect machine name
-function getMachine() {
-  const h = os.hostname().toLowerCase();
-  if (h.includes('fortress') || h.includes('fort')) return 'fort';
-  if (h.includes('fridge') || h.includes('archie')) return 'archie';
-  if (h.includes('macbookpro') || h.includes('alexs-macbook')) return 'alex-mbp';
-  if (h.includes('mac-mini') || h.startsWith('sam')) return 'sam';
-  if (h.includes('lenovo')) return 'lenovo';
-  if (h.includes('toaster')) return 'toaster';
-  if (h.includes('theseus')) return 'theseus';
-  return h;
-}
 
 function run(cmd) {
   return execSync(cmd, { cwd: KB_DIR, stdio: 'pipe', timeout: 15000 }).toString().trim();
@@ -31,7 +21,7 @@ try {
   const status = run('git status --porcelain');
   if (!status) process.exit(0);
 
-  const machine = getMachine();
+  const machine = MACHINE_NAME;
   const today = new Date().toISOString().slice(0, 10);
   const time = new Date().toTimeString().slice(0, 5);
   const dailyLog = path.join(KB_DIR, 'daily', `${today}-${machine}.md`);

@@ -5,7 +5,11 @@
 const fs = require('fs');
 const path = require('path');
 
-const NOTIF_DIR = path.join(process.env.USERPROFILE || process.env.HOME, 'knowledge', 'notifications', 'fort');
+const MACHINE_NAME = process.env.FLEET_MACHINE_NAME
+  || process.env.KB_MACHINE_NAME
+  || require('os').hostname().toLowerCase().split('.')[0];
+
+const NOTIF_DIR = path.join(process.env.USERPROFILE || process.env.HOME, 'knowledge', 'notifications', MACHINE_NAME);
 
 try {
   if (!fs.existsSync(NOTIF_DIR)) process.exit(0);
