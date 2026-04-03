@@ -13,7 +13,22 @@
     --text: #e0e0e0; --dim: #666; --accent: #d97706; --green: #22c55e; --red: #ef4444;
     --yellow: #eab308; --blue: #3b82f6; --purple: #8b5cf6;
   }
-  body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; }
+  body {
+    background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 40px 40px;
+    position: relative;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(217,119,6,0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 100%, rgba(124,58,237,0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, rgba(14,165,233,0.04) 0%, transparent 60%);
+  }
+  .game-container, .header, .footer { position: relative; z-index: 1; }
   code, .mono { font-family: 'JetBrains Mono', monospace; }
 
   /* ── Layout ── */
@@ -264,10 +279,23 @@
 <div class="game-container">
   <div class="header">
     <h1>Fleet <span>Commander</span></h1>
-    <div class="tagline">Build your fleet. Dispatch tasks. Learn claude-fleet by playing.</div>
-    <!-- Change #12: Hero video on homepage -->
-    <div style="max-width:600px;margin:16px auto 0;border-radius:12px;overflow:hidden;border:1px solid var(--border)">
-      <video src="images/claude-fleet-promo.mp4" autoplay muted playsinline loop style="width:100%;display:block"></video>
+    <div class="tagline">Build your fleet. Dispatch tasks. Learn <a href="https://github.com/ibrews/claude-fleet" target="_blank" style="color:var(--accent);text-decoration:none;font-weight:600">claude-fleet</a> by playing.</div>
+    <!-- Interactive slideshow -->
+    <div id="hero-slideshow" style="max-width:800px;margin:20px auto 0;position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--border);background:#070710;aspect-ratio:1200/630;cursor:pointer" onclick="heroNext()">
+      <div id="hero-slides" style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:30px 40px">
+        <!-- Slides rendered by JS -->
+      </div>
+      <!-- Nav dots -->
+      <div style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:5">
+        <span id="hero-dots"></span>
+      </div>
+      <!-- Click hint -->
+      <div id="hero-hint" style="position:absolute;bottom:12px;right:16px;font-size:11px;color:var(--dim);z-index:5;opacity:0.6">click to advance →</div>
+      <!-- Ambient glow -->
+      <div style="position:absolute;top:-60px;left:-60px;width:300px;height:300px;background:rgba(217,119,6,0.1);border-radius:50%;filter:blur(80px);pointer-events:none"></div>
+      <div style="position:absolute;bottom:-40px;right:-40px;width:250px;height:250px;background:rgba(124,58,237,0.08);border-radius:50%;filter:blur(80px);pointer-events:none"></div>
+      <!-- Grid overlay -->
+      <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px);background-size:30px 30px;pointer-events:none"></div>
     </div>
     <div class="phase-indicator" id="phase-dots"></div>
   </div>
@@ -276,7 +304,8 @@
 
   <!-- Change #11: Updated footer credit -->
   <div class="footer">
-    Built by <a href="https://www.agilelens.com" target="_blank">Alex Coulombe</a> and Claude to streamline work at his XR studio <a href="https://www.agilelens.com" target="_blank">Agile Lens</a>. Powered by <a href="https://github.com/ibrews/claude-fleet" target="_blank">claude-fleet</a>.<br>
+    Built by <a href="https://www.agilelens.com" target="_blank">Alex Coulombe</a> and Claude to streamline work at his XR studio <a href="https://www.agilelens.com" target="_blank">Agile Lens</a>.<br>
+    Powered by <a href="https://github.com/ibrews/claude-fleet" target="_blank">claude-fleet</a> to teach <a href="https://github.com/ibrews/claude-fleet" target="_blank">claude-fleet</a>.<br>
     <a href="https://github.com/ibrews/claude-fleet" target="_blank" style="display:inline-block;margin-top:8px;padding:6px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:12px">⭐ Star on GitHub</a>
     <span style="margin-left:12px;cursor:pointer;font-size:12px;color:var(--dim)" onclick="if(musicPlaying){stopMusic();this.textContent='🔇 Sound off'}else{startMusic();this.textContent='🔊 Sound on'}">🔊 Sound</span>
   </div>
@@ -445,6 +474,105 @@ document.addEventListener('click', function initOnce() {
   startMusic();
   document.removeEventListener('click', initOnce);
 }, { once: true });
+
+// ── Hero Slideshow ──
+const HERO_SLIDES = [
+  { title: 'Your machines. One fleet.', sub: 'Any mix of macOS, Windows, Linux — connected via Tailscale.', visual: `
+    <div style="display:flex;gap:24px;margin-top:20px;justify-content:center;flex-wrap:wrap">
+      <div style="padding:12px 20px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);border-radius:10px;text-align:center"><div style="font-size:20px">🍎</div><div style="font-size:12px;color:#6366f1;margin-top:4px">MacBook Pro</div></div>
+      <div style="padding:12px 20px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:10px;text-align:center"><div style="font-size:20px">🖥️</div><div style="font-size:12px;color:#ef4444;margin-top:4px">RTX 5090 Tower</div></div>
+      <div style="padding:12px 20px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:10px;text-align:center"><div style="font-size:20px">🐧</div><div style="font-size:12px;color:#3b82f6;margin-top:4px">Linux Server</div></div>
+    </div>` },
+  { title: 'Shared knowledge base in git', sub: 'Every machine reads and writes to the same repo. Inboxes are just markdown files.', visual: `
+    <div style="font-family:'JetBrains Mono',monospace;font-size:13px;background:rgba(0,0,0,0.3);border-radius:8px;padding:14px;margin-top:16px;text-align:left;line-height:2">
+      <span style="color:#888">~/knowledge/</span><br>
+      <span style="color:#22c55e">├─</span> inbox/<br>
+      <span style="color:#22c55e">│  ├─</span> <span style="color:#6366f1">alpha.md</span><br>
+      <span style="color:#22c55e">│  ├─</span> <span style="color:#ef4444">beta.md</span><br>
+      <span style="color:#22c55e">│  └─</span> <span style="color:#3b82f6">gamma.md</span><br>
+      <span style="color:#22c55e">├─</span> daily/<br>
+      <span style="color:#22c55e">└─</span> decisions/
+    </div>` },
+  { title: 'Drop a task in any inbox', sub: 'Write markdown. Push. The machine picks it up automatically.', visual: `
+    <div style="font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(0,0,0,0.3);border-radius:8px;padding:14px;margin-top:16px;text-align:left;line-height:1.8">
+      <span style="color:#eab308">- [ ]</span> <span style="color:#888">[2026-04-03]</span> @you → <span style="color:#e0e0e0">run the test suite and report failures</span>
+    </div>` },
+  { title: 'Three hooks make it automatic', sub: 'SessionStart checks inbox. Stop syncs KB. PostToolUse delivers notifications.', visual: `
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:16px">
+      <div style="padding:10px 16px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;font-size:13px"><strong style="color:#22c55e">SessionStart</strong> — pulls KB, checks inbox, injects pending tasks</div>
+      <div style="padding:10px 16px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);border-radius:8px;font-size:13px"><strong style="color:#8b5cf6">Stop</strong> — commits changes, pushes KB, sends notification</div>
+      <div style="padding:10px 16px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.3);border-radius:8px;font-size:13px"><strong style="color:#3b82f6">PostToolUse</strong> — checks for mid-session messages</div>
+    </div>` },
+  { title: 'Instant dispatch — results in seconds', sub: 'SSH into any machine. Run headless Claude. Get the answer back.', visual: `
+    <div style="margin-top:16px">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;font-size:13px;justify-content:center">
+        <span style="color:#888">You</span> <span style="color:#d97706">→ SSH →</span> <span style="color:#888">Machine runs Claude</span> <span style="color:#22c55e">→ Result</span>
+      </div>
+      <div style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);border-radius:8px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:11px;text-align:left">
+        <div style="color:#22c55e;font-size:10px;margin-bottom:4px">✅ Task Complete — beta</div>
+        D: drive: 1.2 TB free of 2.0 TB (40% used)
+      </div>
+    </div>` },
+  { title: 'Chain tasks across machines', sub: 'Multi-step workflows. Each step feeds into the next.', visual: `
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;font-size:13px">
+      <div style="display:flex;align-items:center;gap:8px"><span style="color:#6366f1;font-weight:700">1.</span> Alpha: "Run tests"</div>
+      <div style="text-align:center;color:#d97706;font-size:10px">↓ output feeds into next</div>
+      <div style="display:flex;align-items:center;gap:8px"><span style="color:#f97316;font-weight:700">2.</span> Beta: "Fix failures: {{prev}}"</div>
+      <div style="text-align:center;color:#d97706;font-size:10px">↓</div>
+      <div style="display:flex;align-items:center;gap:8px"><span style="color:#22c55e;font-weight:700">3.</span> Gamma: "Deploy fixed build"</div>
+    </div>` },
+  { title: 'Open source. ~20 min setup.', sub: '', visual: `
+    <div style="margin-top:20px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;margin-bottom:8px">
+        <span style="color:#fff">claude</span><span style="color:#d97706">fleet</span>
+      </div>
+      <a href="https://github.com/ibrews/claude-fleet" target="_blank" style="display:inline-block;padding:10px 24px;background:#d97706;color:#000;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;margin-top:8px">⭐ Star on GitHub</a>
+      <div style="display:flex;gap:16px;justify-content:center;margin-top:16px;flex-wrap:wrap;font-size:12px;color:#888">
+        <span>🔗 Tailscale</span><span>📬 Git inboxes</span><span>🖥️ Dashboard</span><span>⚡ Instant dispatch</span><span>⛓ Workflows</span><span>📱 Telegram</span>
+      </div>
+    </div>` },
+];
+
+let heroSlide = 0;
+let heroAutoTimer = null;
+
+function renderHeroSlides() {
+  const el = document.getElementById('hero-slides');
+  const dots = document.getElementById('hero-dots');
+  if (!el) return;
+  const s = HERO_SLIDES[heroSlide];
+  el.innerHTML = `
+    <div style="text-align:center;animation:fadeIn 0.4s ease;width:100%">
+      <div style="font-size:clamp(20px,3.5vw,28px);font-weight:700;color:#fff">${s.title.replace('claude-fleet', '<a href=&quot;https://github.com/ibrews/claude-fleet&quot; target=&quot;_blank&quot; style=&quot;color:#d97706;text-decoration:none&quot;>claude-fleet</a>')}</div>
+      ${s.sub ? `<div style="font-size:clamp(12px,2vw,15px);color:#888;margin-top:6px">${s.sub}</div>` : ''}
+      ${s.visual}
+    </div>
+  `;
+  if (dots) {
+    dots.innerHTML = HERO_SLIDES.map((_, i) => `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${i === heroSlide ? '#d97706' : '#333'};transition:background 0.3s;cursor:pointer" onclick="event.stopPropagation();heroSlide=${i};renderHeroSlides();heroResetAuto()"></span>`).join('');
+  }
+}
+
+function heroNext() {
+  heroSlide = (heroSlide + 1) % HERO_SLIDES.length;
+  renderHeroSlides();
+  heroResetAuto();
+  sfxClick();
+}
+
+function heroResetAuto() {
+  if (heroAutoTimer) clearInterval(heroAutoTimer);
+  heroAutoTimer = setInterval(() => { heroSlide = (heroSlide + 1) % HERO_SLIDES.length; renderHeroSlides(); }, 5000);
+}
+
+// Init slideshow on load
+document.addEventListener('DOMContentLoaded', () => {
+  renderHeroSlides();
+  heroResetAuto();
+  // Hide hint after first click
+  const hint = document.getElementById('hero-hint');
+  document.getElementById('hero-slideshow')?.addEventListener('click', () => { if (hint) hint.style.display = 'none'; }, { once: true });
+});
 
 // ── Fleet Visualization Module ──
 const FleetViz = {
