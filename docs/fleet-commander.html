@@ -1377,7 +1377,6 @@ function installOn(machineIdx, stepId) {
   setTimeout(() => {
     m.installed[stepId] = true;
     m.installing = null;
-    // Change #10: installs give 1 point each
     G.score += 1;
     saveScore();
     sfxComplete();
@@ -1386,7 +1385,7 @@ function installOn(machineIdx, stepId) {
       sfxRankUp();
       showToast('All Installed!', 'Every machine is ready. Time to connect the network.', 'success');
     }
-    checkRank();
+    // Don't checkRank on installs — too many fire at once. Rank checked on dispatches only.
     render();
   }, step.time + Math.random() * 500);
 }
@@ -1861,9 +1860,9 @@ function addActivity(type, message) {
 function checkRank() {
   // Don't trigger a new celebration while one is already showing
   if (G.showCelebration !== null) return;
-  // Don't allow rank-ups within 2 seconds of each other
+  // Don't allow rank-ups within 5 seconds of each other
   const now = Date.now();
-  if (now - G.lastRankTime < 2000) return;
+  if (now - G.lastRankTime < 5000) return;
 
   // Change #10: score-based rank check
   let newRank = 0;
@@ -1930,7 +1929,10 @@ function renderCelebration() {
           <div class="celeb-stat"><div class="val" style="color:var(--accent)">${G.score}</div><div class="lbl">Score</div></div>
         </div>
         ${!isSkynet ? `
-          <button class="btn btn-primary" onclick="G.showCelebration=null;render()">Continue Commanding</button>
+          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="G.showCelebration=null;render()">Continue Commanding</button>
+            <a href="https://github.com/ibrews/claude-fleet" target="_blank" class="btn" style="text-decoration:none">⭐ Take me to the repo</a>
+          </div>
         ` : ''}
         ${isSkynet ? `
           <button class="btn" style="background:var(--red);border-color:var(--red);color:#fff;margin-bottom:16px" onclick="G.showCelebration=null;render()">Accept Our Robot Overlords</button>
