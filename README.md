@@ -220,7 +220,11 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 
 ## Try It — Fleet Commander
 
-**[Launch Fleet Commander](docs/fleet-commander.html)** — an interactive browser game that teaches you how claude-fleet works. Build your fleet, spec your machines, dispatch tasks, and learn the architecture by playing. No installation required.
+**[Launch Fleet Commander](https://ibrews.github.io/claude-fleet/docs/fleet-commander.html)** — an interactive browser game that teaches you how claude-fleet works. Build your fleet, spec your machines, dispatch tasks, and learn the architecture by playing. No installation required.
+
+![Fleet Commander — Build your fleet](docs/images/fc-machines.png)
+![Fleet Commander — Dispatch tasks and watch hooks fire](docs/images/fc-midgame.png)
+![Fleet Commander — Achieve SKYNET](docs/images/fc-skynet.png)
 
 ## Examples
 
