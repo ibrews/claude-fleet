@@ -1657,8 +1657,8 @@ function renderPlay() {
           </select>
           <input id="dispatch-task" placeholder="e.g. check disk space, run tests, deploy to staging..." />
           <button class="dice-btn" onclick="randomizeTask()" title="Random task">🎲</button>
-          <button class="btn btn-primary" id="btn-dispatch-inbox">📬 Inbox</button>
-          <button class="btn btn-green" id="btn-dispatch-instant">⚡ Instant</button>
+          <button class="btn btn-green" id="btn-dispatch-instant" style="min-width:110px">⚡ Instant</button>
+          <button class="btn btn-primary" id="btn-dispatch-inbox" style="min-width:110px;background:var(--yellow);border-color:var(--yellow);color:#000">📬 Inbox</button>
         </div>
         <div class="concept-tooltip" style="margin-top:0">
           <strong>Inbox</strong> writes a task to the machine's <code class="mono">inbox/*.md</code> file.
@@ -1697,8 +1697,8 @@ function renderPlay() {
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <input id="fleet-custom-task" placeholder="Or type your own..." style="flex:1;min-width:200px;padding:8px 12px;font-size:13px" />
             <button class="dice-btn" onclick="document.getElementById('fleet-custom-task').value=pick(TASK_IDEAS)">🎲</button>
-            <button class="btn btn-green" style="font-size:12px" onclick="const t=document.getElementById('fleet-custom-task').value.trim();if(t){dispatchFleetWide(t,25,'instant');document.getElementById('fleet-custom-task').value=''}">⚡ Send to All</button>
-            <button class="btn" style="font-size:12px;background:var(--yellow);border-color:var(--yellow);color:#000" onclick="const t=document.getElementById('fleet-custom-task').value.trim();if(t){dispatchFleetWide(t,25,'inbox');document.getElementById('fleet-custom-task').value=''}">📬 Inbox All</button>
+            <button class="btn btn-green" style="font-size:12px;min-width:130px" onclick="const t=document.getElementById('fleet-custom-task').value.trim();if(t){dispatchFleetWide(t,25,'instant');document.getElementById('fleet-custom-task').value=''}">⚡ Instant to All</button>
+            <button class="btn" style="font-size:12px;min-width:130px;background:var(--yellow);border-color:var(--yellow);color:#000" onclick="const t=document.getElementById('fleet-custom-task').value.trim();if(t){dispatchFleetWide(t,25,'inbox');document.getElementById('fleet-custom-task').value=''}">📬 Inbox to All</button>
           </div>
           <div style="margin-top:10px;font-size:12px;color:var(--dim)">Or build one:</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
@@ -1714,8 +1714,8 @@ function renderPlay() {
             <select id="ml-scope" style="width:auto;padding:6px 10px;font-size:12px">
               <option>all machines</option><option>GPU machines only</option><option>macOS machines</option><option>Windows machines</option><option>Linux machines</option>
             </select>
-            <button class="btn btn-primary btn-sm" onclick="const v=document.getElementById('ml-verb').value,t=document.getElementById('ml-target').value,s=document.getElementById('ml-scope').value;dispatchFleetWide(v+' '+t+' on '+s, 30, 'instant')">⚡ Go!</button>
-            <button class="btn btn-sm" style="background:var(--yellow);border-color:var(--yellow);color:#000" onclick="const v=document.getElementById('ml-verb').value,t=document.getElementById('ml-target').value,s=document.getElementById('ml-scope').value;dispatchFleetWide(v+' '+t+' on '+s, 30, 'inbox')">📬 Go!</button>
+            <button class="btn btn-sm" style="background:var(--green);border-color:var(--green);color:#000" onclick="const v=document.getElementById('ml-verb').value,t=document.getElementById('ml-target').value,s=document.getElementById('ml-scope').value;dispatchFleetWide(v+' '+t+' on '+s, 30, 'instant')">⚡ Go</button>
+            <button class="btn btn-sm" style="background:var(--yellow);border-color:var(--yellow);color:#000" onclick="const v=document.getElementById('ml-verb').value,t=document.getElementById('ml-target').value,s=document.getElementById('ml-scope').value;dispatchFleetWide(v+' '+t+' on '+s, 30, 'inbox')">📬 Go</button>
           </div>
         </div>
       </div>
