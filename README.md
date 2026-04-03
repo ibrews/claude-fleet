@@ -33,6 +33,20 @@ Coordinate a fleet of computers each running [Claude Code](https://docs.anthropi
                    📱 You
 ```
 
+## Screenshots
+
+### Fleet Control Center — Machine Overview
+![Fleet Overview](docs/images/fleet-overview.png)
+
+### Machine Detail — Inbox & Completed Tasks
+![Machine Detail](docs/images/machine-detail.png)
+
+### Dispatch Task — Instant & Inbox Modes
+![Dispatch Task](docs/images/dispatch-task.png)
+
+### All Pending Inbox Items
+![Pending Inbox](docs/images/pending-inbox.png)
+
 ## Important: Stay Out of `~/.claude/`
 
 The `~/.claude/` directory is Claude Code's internal config directory. Accessing it directly triggers permission prompts and can interfere with Claude's operation.
