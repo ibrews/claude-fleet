@@ -261,73 +261,146 @@ function playNote(freq, duration = 0.15, type = 'square', vol = 0.06) {
   osc.stop(audioCtx.currentTime + duration);
 }
 
-function sfxClick() { playNote(800, 0.06, 'square', 0.04); }
-function sfxDispatch() { playNote(440, 0.1, 'triangle', 0.05); setTimeout(() => playNote(660, 0.1, 'triangle', 0.05), 100); }
-function sfxComplete() { playNote(523, 0.1, 'sine', 0.06); setTimeout(() => playNote(659, 0.1, 'sine', 0.06), 100); setTimeout(() => playNote(784, 0.15, 'sine', 0.06), 200); }
-function sfxRankUp() { [523,659,784,1047].forEach((f,i) => setTimeout(() => playNote(f, 0.2, 'square', 0.05), i * 120)); }
-function sfxSkynet() { [220,196,165,147].forEach((f,i) => setTimeout(() => playNote(f, 0.4, 'sawtooth', 0.04), i * 200)); }
+function sfxClick() { playNote(800, 0.06, 'square', 0.03); }
+function sfxDispatch() { playNote(440, 0.1, 'triangle', 0.04); setTimeout(() => playNote(660, 0.1, 'triangle', 0.04), 100); }
+function sfxComplete() { playNote(523, 0.1, 'sine', 0.05); setTimeout(() => playNote(659, 0.1, 'sine', 0.05), 100); setTimeout(() => playNote(784, 0.15, 'sine', 0.05), 200); }
 
-// Lo-fi chiptune melody — soft, melodic, not repetitive
-// Generative lo-fi chiptune — never repeats exactly
-// Uses pentatonic scale + Markov-ish transitions for natural melodic flow
+// Trumpet fanfare for rank-ups!
+function sfxRankUp() {
+  const fanfare = [523, 523, 659, 784, 784, 1047];
+  const timing = [0, 80, 160, 320, 400, 520];
+  const durs =   [0.08, 0.08, 0.15, 0.08, 0.12, 0.4];
+  fanfare.forEach((f, i) => setTimeout(() => {
+    // "Trumpet" = bright sawtooth + square layered
+    playNote(f, durs[i], 'sawtooth', 0.04);
+    playNote(f, durs[i] * 0.8, 'square', 0.02);
+    // Add a fifth for richness on the big notes
+    if (i >= 3) playNote(f * 0.75, durs[i], 'sawtooth', 0.02);
+  }, timing[i]));
+}
+
+function sfxSkynet() {
+  // Ominous descending brass
+  [220, 196, 165, 147, 131].forEach((f, i) => setTimeout(() => {
+    playNote(f, 0.5, 'sawtooth', 0.04);
+    playNote(f * 1.5, 0.5, 'square', 0.02);
+    playNote(f * 0.5, 0.6, 'triangle', 0.03);
+  }, i * 250));
+}
+
+// ── Generative Music System with chords + bass ──
 const SCALES = {
-  dreamy: [262, 294, 330, 392, 440, 523, 587, 659, 784],   // C pentatonic over 2 octaves
-  moody:  [220, 262, 294, 330, 392, 440, 523, 587, 659],   // lower range
-  bright: [330, 392, 440, 523, 587, 659, 784, 880, 1047],  // higher range
+  dreamy: [262, 294, 330, 392, 440, 523, 587, 659, 784],
+  moody:  [220, 262, 294, 330, 392, 440, 523, 587, 659],
+  bright: [330, 392, 440, 523, 587, 659, 784, 880, 1047],
 };
+
+// Chord progressions per mood (root scale degrees)
+const CHORD_ROOTS = {
+  dreamy: [0, 3, 4, 2],  // I - IV - V - iii
+  moody:  [0, 5, 3, 4],  // i - vi - IV - V
+  bright: [0, 4, 2, 3],  // I - V - iii - IV
+};
+
+// Bass patterns (scale degree offsets from chord root)
+const BASS_PATTERNS = [
+  [0, 0, 4, 4],       // root, root, fifth, fifth
+  [0, 2, 4, 2],       // root, third, fifth, third
+  [0, 0, 0, -1],      // root, root, root, leading tone
+  [0, 4, 0, 2],       // root, fifth, root, third
+];
+
 const DURATIONS = [0.25, 0.3, 0.35, 0.4, 0.5, 0.6, 0.8];
 
-let musicState = { scaleIdx: 0, noteIdx: 4, phraseCtr: 0, restChance: 0.12 };
+let musicState = { scaleIdx: 0, noteIdx: 4, phraseCtr: 0, restChance: 0.12, chordIdx: 0, bassStep: 0, bassPattern: 0, beatCount: 0 };
+let bassInterval = null;
 
 function generateNote() {
   const scaleNames = Object.keys(SCALES);
-  // Shift scale mood every 16-24 notes
   if (musicState.phraseCtr > 16 + Math.random() * 8) {
     musicState.scaleIdx = (musicState.scaleIdx + 1) % scaleNames.length;
     musicState.phraseCtr = 0;
     musicState.restChance = 0.08 + Math.random() * 0.1;
+    musicState.bassPattern = Math.floor(Math.random() * BASS_PATTERNS.length);
   }
-  const scale = SCALES[scaleNames[musicState.scaleIdx]];
+  const scaleName = scaleNames[musicState.scaleIdx];
+  const scale = SCALES[scaleName];
 
-  // Melodic movement: favor small steps, occasional leaps
   const step = Math.random() < 0.7 ? (Math.random() < 0.5 ? -1 : 1) : (Math.random() < 0.5 ? -2 : 2);
   musicState.noteIdx = Math.max(0, Math.min(scale.length - 1, musicState.noteIdx + step));
 
-  // Occasional rest for breathing room
   const isRest = Math.random() < musicState.restChance;
   const freq = isRest ? 0 : scale[musicState.noteIdx];
   const dur = DURATIONS[Math.floor(Math.random() * DURATIONS.length)];
 
-  // Vary rest probability (more rests after long phrases)
   musicState.restChance = isRest ? 0.05 : musicState.restChance + 0.01;
   musicState.phraseCtr++;
 
-  return [freq, dur];
+  return [freq, dur, scaleName];
 }
 
 function startMusic() {
   if (musicPlaying || !audioCtx) return;
   musicPlaying = true;
-  function playNext() {
+
+  // Melody voice
+  function playMelody() {
     if (!musicPlaying) return;
-    const [freq, dur] = generateNote();
+    const [freq, dur, mood] = generateNote();
     if (freq > 0) {
-      // Main voice
       const wave = ['triangle', 'sine', 'triangle'][musicState.scaleIdx];
-      playNote(freq, dur * 0.8, wave, 0.02 + Math.random() * 0.01);
-      // Soft sub-octave pad
-      playNote(freq * 0.5, dur * 1.4, 'sine', 0.01);
-      // Occasional sparkle (high octave, very quiet)
-      if (Math.random() < 0.15) playNote(freq * 2, dur * 0.4, 'sine', 0.008);
+      playNote(freq, dur * 0.8, wave, 0.018 + Math.random() * 0.008);
+
+      // ~25% chance: play a chord (add third + fifth above)
+      if (Math.random() < 0.25) {
+        const scale = SCALES[mood];
+        const idx = musicState.noteIdx;
+        if (idx + 2 < scale.length) playNote(scale[idx + 2], dur * 0.7, 'sine', 0.01);
+        if (idx + 4 < scale.length) playNote(scale[idx + 4], dur * 0.6, 'sine', 0.007);
+      }
+
+      // Occasional sparkle
+      if (Math.random() < 0.12) playNote(freq * 2, dur * 0.3, 'sine', 0.006);
     }
-    musicInterval = setTimeout(playNext, dur * 480 + Math.random() * 40);
+    musicInterval = setTimeout(playMelody, dur * 480 + Math.random() * 40);
   }
-  playNext();
+
+  // Bass voice — slower, steady, grounding
+  function playBass() {
+    if (!musicPlaying) return;
+    const scaleName = Object.keys(SCALES)[musicState.scaleIdx];
+    const scale = SCALES[scaleName];
+    const chordRoots = CHORD_ROOTS[scaleName];
+    const pattern = BASS_PATTERNS[musicState.bassPattern];
+
+    // Get bass note from chord root + pattern
+    const rootDeg = chordRoots[musicState.chordIdx % chordRoots.length];
+    const bassDeg = rootDeg + pattern[musicState.bassStep % pattern.length];
+    const bassIdx = Math.max(0, Math.min(scale.length - 1, bassDeg));
+    const bassFreq = scale[bassIdx] * 0.5; // One octave down
+
+    playNote(bassFreq, 0.6, 'triangle', 0.02);
+    // Subtle sub-bass
+    playNote(bassFreq * 0.5, 0.8, 'sine', 0.012);
+
+    musicState.bassStep++;
+    if (musicState.bassStep >= 4) {
+      musicState.bassStep = 0;
+      musicState.chordIdx++;
+    }
+    musicState.beatCount++;
+
+    bassInterval = setTimeout(playBass, 550 + Math.random() * 30);
+  }
+
+  playMelody();
+  setTimeout(playBass, 300); // Bass starts slightly offset
 }
 
 function stopMusic() {
   musicPlaying = false;
   if (musicInterval) clearTimeout(musicInterval);
+  if (bassInterval) clearTimeout(bassInterval);
 }
 
 // Start audio on first user interaction
@@ -900,12 +973,37 @@ function renderPlay() {
           <strong>Before fleet:</strong> You'd SSH into each machine one-by-one, run the same command, wait, repeat.
           <strong>After fleet:</strong> One click. Every machine works in parallel. Results stream back.
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
           ${FLEET_TASKS.map(t => `
             <button class="btn" style="font-size:12px;padding:8px 14px" onclick="dispatchFleetWide('${t.label}', ${t.points})">
-              ${t.icon} ${t.label.length > 35 ? t.label.slice(0,35) + '...' : t.label}
+              ${t.icon} ${t.label.length > 35 ? t.label.slice(0,35) + '...' : t.label} <span style="color:var(--accent);font-size:10px">+${t.points}</span>
             </button>
           `).join('')}
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+          <div style="font-size:12px;color:var(--dim);margin-bottom:8px">Custom fleet-wide operation:</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <input id="fleet-custom-task" placeholder="Or type your own..." style="flex:1;min-width:200px;padding:8px 12px;font-size:13px" />
+            <button class="dice-btn" onclick="document.getElementById('fleet-custom-task').value=pick(TASK_IDEAS)">🎲</button>
+            <button class="btn btn-green" style="font-size:12px" onclick="const t=document.getElementById('fleet-custom-task').value.trim();if(t){dispatchFleetWide(t,25);document.getElementById('fleet-custom-task').value=''}">🌐 Send to All</button>
+          </div>
+          <div style="margin-top:10px;font-size:12px;color:var(--dim)">Or build one:</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
+            <select id="ml-verb" style="width:auto;padding:6px 10px;font-size:12px">
+              <option>Install</option><option>Update</option><option>Benchmark</option><option>Remove</option><option>Configure</option><option>Test</option><option>Deploy</option>
+            </select>
+            <select id="ml-target" style="width:auto;padding:6px 10px;font-size:12px">
+              <option>Gemma4 27B</option><option>Llama 4 Scout</option><option>Qwen3 Coder 30B</option><option>Mistral Large</option>
+              <option>Unreal Engine 5.6</option><option>Docker containers</option><option>CUDA drivers</option><option>the test suite</option>
+              <option>monitoring agents</option><option>the web server</option><option>SSL certificates</option><option>backup scripts</option>
+            </select>
+            <span style="color:var(--dim)">on</span>
+            <select id="ml-scope" style="width:auto;padding:6px 10px;font-size:12px">
+              <option>all machines</option><option>GPU machines only</option><option>Linux machines</option><option>Windows machines</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="const v=document.getElementById('ml-verb').value,t=document.getElementById('ml-target').value,s=document.getElementById('ml-scope').value;dispatchFleetWide(v+' '+t+' on '+s, 30)">Go!</button>
+          </div>
         </div>
       </div>
     </div>
