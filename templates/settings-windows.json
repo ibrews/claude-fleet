@@ -1,0 +1,57 @@
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(sudo rm -rf *)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node %USERPROFILE%\\claude-fleet\\kb-inbox-check.js",
+            "timeout": 30,
+            "statusMessage": "Checking inbox..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node %USERPROFILE%\\claude-fleet\\kb-session-end.js",
+            "timeout": 30,
+            "statusMessage": "Syncing knowledge base..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node %USERPROFILE%\\claude-fleet\\notify-human.js",
+            "timeout": 10,
+            "statusMessage": "Sending notification..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node %USERPROFILE%\\claude-fleet\\check-notifications.js",
+            "timeout": 5,
+            "statusMessage": "Checking fleet notifications..."
+          }
+        ]
+      }
+    ]
+  }
+}

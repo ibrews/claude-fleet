@@ -194,6 +194,42 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 - [Two-Machine Fleet](examples/two-machine-fleet/) — Minimal laptop + desktop setup
 - [Five-Machine Fleet](examples/five-machine-fleet/) — Multi-role fleet with specialization
 
+## Fleet Task Dispatch (Headless Subagents)
+
+Dispatch a task to any fleet machine and get results back. Uses `claude -p` (headless mode) over SSH:
+
+```bash
+# Simple query
+node scripts/fleet-task.js beta "Find all TODO comments in the project" --tools "Read,Glob,Grep"
+
+# Get structured JSON output
+node scripts/fleet-task.js gamma "Summarize the README" --json
+
+# Fire and forget (long-running builds, etc.)
+node scripts/fleet-task.js beta "Build the APK and upload it" --timeout 600 --bg
+
+# Use a specific model
+node scripts/fleet-task.js beta "Review this PR" --model claude-sonnet-4-6
+```
+
+**When to use this vs. the inbox system:**
+- **fleet-task.js**: Real-time results needed, task is self-contained, takes < 10 minutes
+- **Inbox/triggers**: Async is fine, task needs human review, long-running work
+
+### Windows Support (Node.js Scripts)
+
+All hooks have Node.js equivalents for Windows machines (no bash/Python dependency):
+
+| Bash (macOS/Linux) | Node.js (Windows) |
+|--------------------|--------------------|
+| `kb-inbox-check.sh` | `kb-inbox-check.js` |
+| `kb-session-end.sh` | `kb-session-end.js` |
+| `check-notifications.sh` | `check-notifications.js` |
+| `fleet-sync-notifications.sh` | `fleet-sync-notifications.js` |
+| `send-notification.js` | `send-notification-node.js` |
+
+See [templates/settings-windows.json](templates/settings-windows.json) for the Windows hook configuration.
+
 ## How It Works Under the Hood
 
 The magic is in four hooks:
