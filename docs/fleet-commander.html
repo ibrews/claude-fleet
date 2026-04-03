@@ -170,9 +170,10 @@
   .dice-btn:hover { color: var(--accent); border-color: var(--accent); transform: rotate(15deg); }
   .dice-btn:active { transform: rotate(360deg); transition: transform 0.3s; }
 
-  /* ── Fleet Visualization ── */
+  /* ── Fleet Visualization ── (Change #6: sticky, 300px) */
   .fleet-viz-container {
-    position: relative; border-radius: 16px; overflow: hidden;
+    position: sticky; top: 12px; z-index: 50;
+    border-radius: 16px; overflow: hidden;
     border: 1px solid var(--border); margin-bottom: 20px;
     background: radial-gradient(ellipse at center, #0d0d1a 0%, #070710 100%);
   }
@@ -184,6 +185,28 @@
     backdrop-filter: blur(4px);
   }
   .fleet-viz-toggle:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ── Fleet-wide mode buttons ── */
+  .fleet-task-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .fleet-task-item { display: flex; align-items: center; gap: 2px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .fleet-task-item .fleet-task-label { padding: 8px 10px; font-size: 12px; white-space: nowrap; }
+  .fleet-task-item .fleet-mode-btn { padding: 8px 8px; font-size: 14px; cursor: pointer; border: none; background: transparent; color: var(--text); transition: all 0.15s; border-left: 1px solid var(--border); }
+  .fleet-task-item .fleet-mode-btn:hover { background: var(--accent); color: #000; }
+  .fleet-task-item .fleet-mode-btn.inbox-mode:hover { background: var(--yellow); color: #000; }
+
+  /* ── Leaderboard ── */
+  .leaderboard-bar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .leaderboard-bar .lb-rank { font-size: 14px; font-weight: 700; color: var(--accent); }
+  .leaderboard-bar .lb-actions { display: flex; gap: 8px; margin-left: auto; }
+  .leaderboard-overlay { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; animation: fadeIn 0.3s ease; }
+  .leaderboard-card { background: var(--surface); border: 2px solid var(--accent); border-radius: 16px; padding: 30px 40px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
+  .leaderboard-card h2 { font-size: 24px; font-weight: 700; margin-bottom: 16px; text-align: center; }
+  .lb-entry { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 8px; margin-bottom: 4px; font-size: 13px; }
+  .lb-entry.you { background: rgba(217,119,6,0.15); border: 1px solid var(--accent); }
+  .lb-entry .lb-pos { width: 28px; font-weight: 700; color: var(--dim); text-align: right; }
+  .lb-entry .lb-name { flex: 1; font-weight: 600; }
+  .lb-entry .lb-score { font-weight: 700; color: var(--accent); }
+  .lb-entry .lb-rank-badge { font-size: 11px; color: var(--dim); }
 
   /* ── Mobile Responsive ── */
   @media (max-width: 600px) {
@@ -222,6 +245,9 @@
 
     /* Inbox panel: stack */
     .inbox-panel { grid-template-columns: 1fr; }
+
+    /* Sticky viz smaller on mobile */
+    .fleet-viz-container { top: 0; }
   }
 
   /* ── Footer ── */
@@ -238,13 +264,18 @@
   <div class="header">
     <h1>Fleet <span>Commander</span></h1>
     <div class="tagline">Build your fleet. Dispatch tasks. Learn claude-fleet by playing.</div>
+    <!-- Change #12: Hero video on homepage -->
+    <div style="max-width:600px;margin:16px auto 0;border-radius:12px;overflow:hidden;border:1px solid var(--border)">
+      <video src="images/claude-fleet-promo.mp4" autoplay muted playsinline loop style="width:100%;display:block"></video>
+    </div>
     <div class="phase-indicator" id="phase-dots"></div>
   </div>
 
   <div id="game"></div>
 
+  <!-- Change #11: Updated footer credit -->
   <div class="footer">
-    Built to teach <a href="https://github.com/ibrews/claude-fleet" target="_blank">claude-fleet</a> — the open-source system for coordinating Claude Code across multiple machines.<br>
+    Built by <a href="https://www.agilelens.com" target="_blank">Alex Coulombe</a> and Claude to streamline work at his XR studio <a href="https://www.agilelens.com" target="_blank">Agile Lens</a>. Powered by <a href="https://github.com/ibrews/claude-fleet" target="_blank">claude-fleet</a>.<br>
     <a href="https://github.com/ibrews/claude-fleet" target="_blank" style="display:inline-block;margin-top:8px;padding:6px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:12px">⭐ Star on GitHub</a>
     <span style="margin-left:12px;cursor:pointer;font-size:12px;color:var(--dim)" onclick="if(musicPlaying){stopMusic();this.textContent='🔇 Sound off'}else{startMusic();this.textContent='🔊 Sound on'}">🔊 Sound</span>
   </div>
@@ -286,16 +317,13 @@ function sfxRankUp() {
   const timing = [0, 80, 160, 320, 400, 520];
   const durs =   [0.08, 0.08, 0.15, 0.08, 0.12, 0.4];
   fanfare.forEach((f, i) => setTimeout(() => {
-    // "Trumpet" = bright sawtooth + square layered
     playNote(f, durs[i], 'sawtooth', 0.04);
     playNote(f, durs[i] * 0.8, 'square', 0.02);
-    // Add a fifth for richness on the big notes
     if (i >= 3) playNote(f * 0.75, durs[i], 'sawtooth', 0.02);
   }, timing[i]));
 }
 
 function sfxSkynet() {
-  // Ominous descending brass
   [220, 196, 165, 147, 131].forEach((f, i) => setTimeout(() => {
     playNote(f, 0.5, 'sawtooth', 0.04);
     playNote(f * 1.5, 0.5, 'square', 0.02);
@@ -310,19 +338,17 @@ const SCALES = {
   bright: [330, 392, 440, 523, 587, 659, 784, 880, 1047],
 };
 
-// Chord progressions per mood (root scale degrees)
 const CHORD_ROOTS = {
-  dreamy: [0, 3, 4, 2],  // I - IV - V - iii
-  moody:  [0, 5, 3, 4],  // i - vi - IV - V
-  bright: [0, 4, 2, 3],  // I - V - iii - IV
+  dreamy: [0, 3, 4, 2],
+  moody:  [0, 5, 3, 4],
+  bright: [0, 4, 2, 3],
 };
 
-// Bass patterns (scale degree offsets from chord root)
 const BASS_PATTERNS = [
-  [0, 0, 4, 4],       // root, root, fifth, fifth
-  [0, 2, 4, 2],       // root, third, fifth, third
-  [0, 0, 0, -1],      // root, root, root, leading tone
-  [0, 4, 0, 2],       // root, fifth, root, third
+  [0, 0, 4, 4],
+  [0, 2, 4, 2],
+  [0, 0, 0, -1],
+  [0, 4, 0, 2],
 ];
 
 const DURATIONS = [0.25, 0.3, 0.35, 0.4, 0.5, 0.6, 0.8];
@@ -358,7 +384,6 @@ function startMusic() {
   if (musicPlaying || !audioCtx) return;
   musicPlaying = true;
 
-  // Melody voice
   function playMelody() {
     if (!musicPlaying) return;
     const [freq, dur, mood] = generateNote();
@@ -366,7 +391,6 @@ function startMusic() {
       const wave = ['triangle', 'sine', 'triangle'][musicState.scaleIdx];
       playNote(freq, dur * 0.8, wave, 0.018 + Math.random() * 0.008);
 
-      // ~25% chance: play a chord (add third + fifth above)
       if (Math.random() < 0.25) {
         const scale = SCALES[mood];
         const idx = musicState.noteIdx;
@@ -374,13 +398,11 @@ function startMusic() {
         if (idx + 4 < scale.length) playNote(scale[idx + 4], dur * 0.6, 'sine', 0.007);
       }
 
-      // Occasional sparkle
       if (Math.random() < 0.12) playNote(freq * 2, dur * 0.3, 'sine', 0.006);
     }
     musicInterval = setTimeout(playMelody, dur * 480 + Math.random() * 40);
   }
 
-  // Bass voice — slower, steady, grounding
   function playBass() {
     if (!musicPlaying) return;
     const scaleName = Object.keys(SCALES)[musicState.scaleIdx];
@@ -388,14 +410,12 @@ function startMusic() {
     const chordRoots = CHORD_ROOTS[scaleName];
     const pattern = BASS_PATTERNS[musicState.bassPattern];
 
-    // Get bass note from chord root + pattern
     const rootDeg = chordRoots[musicState.chordIdx % chordRoots.length];
     const bassDeg = rootDeg + pattern[musicState.bassStep % pattern.length];
     const bassIdx = Math.max(0, Math.min(scale.length - 1, bassDeg));
-    const bassFreq = scale[bassIdx] * 0.5; // One octave down
+    const bassFreq = scale[bassIdx] * 0.5;
 
     playNote(bassFreq, 0.6, 'triangle', 0.02);
-    // Subtle sub-bass
     playNote(bassFreq * 0.5, 0.8, 'sine', 0.012);
 
     musicState.bassStep++;
@@ -409,7 +429,7 @@ function startMusic() {
   }
 
   playMelody();
-  setTimeout(playBass, 300); // Bass starts slightly offset
+  setTimeout(playBass, 300);
 }
 
 function stopMusic() {
@@ -428,11 +448,11 @@ document.addEventListener('click', function initOnce() {
 // ── Fleet Visualization Module ──
 const FleetViz = {
   canvas: null, ctx: null, enabled: true, animFrame: null,
-  nodes: [], // { x, y, name, color, glow: 0, processing: false }
+  nodes: [],
   centerNode: null,
-  wires: [], // { from, to, controlPt }
-  pulses: [], // { wireIdx, t: 0..1, speed, color, size }
-  particles: [], // ambient particles { x, y, vx, vy, life, maxLife, color }
+  wires: [],
+  pulses: [],
+  particles: [],
   lastTime: 0,
 
   init(machines) {
@@ -442,10 +462,8 @@ const FleetViz = {
     const cx = w / 2, cy = h / 2;
     const radius = Math.min(w, h) * 0.34;
 
-    // Center node (control center)
     this.centerNode = { x: cx, y: cy, name: 'HQ', color: '#d97706', glow: 0.3, size: 22 };
 
-    // Machine nodes in a circle
     this.nodes = machines.map((m, i) => {
       const angle = (i / machines.length) * Math.PI * 2 - Math.PI / 2;
       return {
@@ -456,10 +474,8 @@ const FleetViz = {
       };
     });
 
-    // Wires from center to each node (curved Bezier)
     this.wires = this.nodes.map((n, i) => {
       const dx = n.x - cx, dy = n.y - cy;
-      // Control point perpendicular to wire for curve
       const perpX = -dy * 0.2 * (i % 2 === 0 ? 1 : -1);
       const perpY = dx * 0.2 * (i % 2 === 0 ? 1 : -1);
       return {
@@ -494,7 +510,6 @@ const FleetViz = {
     this.animFrame = null;
   },
 
-  // Send a data pulse from center to a machine
   sendPulse(machineIdx, color) {
     if (machineIdx < 0 || machineIdx >= this.wires.length) return;
     const c = color || this.nodes[machineIdx]?.color || '#d97706';
@@ -503,7 +518,6 @@ const FleetViz = {
       color: c, size: 4 + Math.random() * 3, trail: []
     });
     this.wires[machineIdx].glow = 1;
-    // Spawn sparkle particles at center
     for (let i = 0; i < 6; i++) {
       this.particles.push({
         x: this.centerNode.x, y: this.centerNode.y,
@@ -513,24 +527,21 @@ const FleetViz = {
     }
   },
 
-  // Send a slow "letter" for inbox mode — drifts to machine, waits, then session starts
   sendLetter(machineIdx, color) {
     if (machineIdx < 0 || machineIdx >= this.wires.length) return;
-    const c = color || '#eab308'; // Yellow for inbox/mail
+    const c = color || '#eab308';
     this.pulses.push({
-      wireIdx: machineIdx, t: 0, speed: 0.25, // Much slower than instant
+      wireIdx: machineIdx, t: 0, speed: 0.25,
       color: c, size: 6, trail: [], isLetter: true
     });
     this.wires[machineIdx].glow = 0.4;
   },
 
-  // Send letters to all machines
   sendLettersToAll(color) {
     this.centerNode.glow = 1;
     this.nodes.forEach((_, i) => {
       setTimeout(() => this.sendLetter(i, color || '#eab308'), i * 120);
     });
-    // Gentler center burst for mail
     for (let i = 0; i < 10; i++) {
       const angle = Math.random() * Math.PI * 2;
       this.particles.push({
@@ -541,7 +552,6 @@ const FleetViz = {
     }
   },
 
-  // Machine enters "waiting for session" state (mailbox icon, gentle pulse)
   mailboxMachine(machineIdx) {
     if (this.nodes[machineIdx]) {
       this.nodes[machineIdx].hasMailbox = true;
@@ -549,13 +559,11 @@ const FleetViz = {
     }
   },
 
-  // "Session started!" — machine wakes up from mailbox state with a burst
   sessionStartMachine(machineIdx) {
     if (!this.nodes[machineIdx]) return;
     this.nodes[machineIdx].hasMailbox = false;
     this.nodes[machineIdx].targetGlow = 1;
     this.nodes[machineIdx].processing = true;
-    // Session start burst — blue/purple
     const n = this.nodes[machineIdx];
     for (let i = 0; i < 15; i++) {
       const angle = (i / 15) * Math.PI * 2;
@@ -566,12 +574,10 @@ const FleetViz = {
     }
   },
 
-  // Fireworks explosion at a machine (for inbox completion)
   fireworks(machineIdx) {
     if (!this.nodes[machineIdx]) return;
     const n = this.nodes[machineIdx];
     const colors = ['#ef4444', '#22c55e', '#eab308', '#3b82f6', '#d97706', '#8b5cf6', '#ec4899'];
-    // Multiple bursts at slightly different positions
     for (let burst = 0; burst < 3; burst++) {
       const bx = n.x + (Math.random() - 0.5) * 30;
       const by = n.y + (Math.random() - 0.5) * 30;
@@ -589,7 +595,6 @@ const FleetViz = {
     }
   },
 
-  // Light up a machine (when it starts processing)
   activateMachine(machineIdx) {
     if (this.nodes[machineIdx]) {
       this.nodes[machineIdx].targetGlow = 1;
@@ -597,12 +602,10 @@ const FleetViz = {
     }
   },
 
-  // Deactivate machine
   deactivateMachine(machineIdx) {
     if (this.nodes[machineIdx]) {
       this.nodes[machineIdx].targetGlow = 0;
       this.nodes[machineIdx].processing = false;
-      // Burst particles on completion
       const n = this.nodes[machineIdx];
       for (let i = 0; i < 12; i++) {
         const angle = (i / 12) * Math.PI * 2;
@@ -614,13 +617,11 @@ const FleetViz = {
     }
   },
 
-  // Send to ALL machines (the big moment)
   sendToAll(color) {
     this.centerNode.glow = 1.5;
     this.nodes.forEach((_, i) => {
       setTimeout(() => this.sendPulse(i, color || '#d97706'), i * 80);
     });
-    // Big burst at center
     for (let i = 0; i < 20; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 30 + Math.random() * 80;
@@ -636,7 +637,6 @@ const FleetViz = {
     // Update pulses
     this.pulses = this.pulses.filter(p => {
       p.t += p.speed * dt;
-      // Store trail positions
       const wire = this.wires[p.wireIdx];
       const pos = this.bezierPoint(wire.from, wire.cp, wire.to, Math.min(p.t, 1));
       p.trail.push({ ...pos, age: 0 });
@@ -645,10 +645,8 @@ const FleetViz = {
 
       if (p.t >= 1) {
         if (p.isLetter) {
-          // Letter arrived — enter mailbox state (waiting for session)
           this.mailboxMachine(p.wireIdx);
         } else {
-          // Instant pulse arrived — activate machine immediately
           this.activateMachine(p.wireIdx);
         }
         return false;
@@ -656,17 +654,14 @@ const FleetViz = {
       return true;
     });
 
-    // Update wire glow (fade out)
     this.wires.forEach(w => { w.glow = Math.max(0, w.glow - dt * 0.8); });
 
-    // Update node glow (ease toward target)
     this.nodes.forEach(n => {
       n.glow += (n.targetGlow - n.glow) * dt * 4;
       if (n.processing) n.glow = 0.5 + Math.sin(performance.now() * 0.004) * 0.3;
     });
     this.centerNode.glow = Math.max(0.2, this.centerNode.glow - dt * 0.5);
 
-    // Update particles
     this.particles = this.particles.filter(p => {
       p.x += p.vx * dt; p.y += p.vy * dt;
       p.vx *= 0.97; p.vy *= 0.97;
@@ -674,13 +669,20 @@ const FleetViz = {
       return p.life > 0;
     });
 
-    // Spawn ambient floating particles occasionally
-    if (Math.random() < dt * 2) {
+    // Change #7: Dynamic particles based on score, cap at dt * 20
+    const spawnRate = Math.min(dt * 20, dt * (2 + G.score * 0.05));
+    if (Math.random() < spawnRate) {
       const w = this.canvas.width, h = this.canvas.height;
+      // More varied colors at higher scores
+      const baseColors = ['#ffffff'];
+      if (G.score > 50) baseColors.push('#d97706', '#3b82f6');
+      if (G.score > 150) baseColors.push('#22c55e', '#8b5cf6', '#ec4899');
+      if (G.score > 500) baseColors.push('#ef4444', '#eab308', '#6366f1');
+      const pColor = baseColors[Math.floor(Math.random() * baseColors.length)];
       this.particles.push({
         x: Math.random() * w, y: Math.random() * h,
         vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8,
-        life: 2 + Math.random() * 3, maxLife: 5, color: '#ffffff', size: 1
+        life: 2 + Math.random() * 3, maxLife: 5, color: pColor, size: 1
       });
     }
   },
@@ -690,13 +692,11 @@ const FleetViz = {
     const w = this.canvas.width, h = this.canvas.height;
     ctx.clearRect(0, 0, w, h);
 
-    // Subtle grid
     ctx.strokeStyle = 'rgba(255,255,255,0.02)';
     ctx.lineWidth = 1;
     for (let x = 0; x < w; x += 30) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
     for (let y = 0; y < h; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
 
-    // Draw wires
     this.wires.forEach((wire, i) => {
       ctx.beginPath();
       ctx.moveTo(wire.from.x, wire.from.y);
@@ -705,7 +705,6 @@ const FleetViz = {
       ctx.strokeStyle = `rgba(255,255,255,${baseAlpha})`;
       ctx.lineWidth = 1.5 + wire.glow * 2;
       ctx.stroke();
-      // Glow layer
       if (wire.glow > 0.1) {
         ctx.strokeStyle = this.nodes[i]?.color || '#d97706';
         ctx.globalAlpha = wire.glow * 0.3;
@@ -718,9 +717,7 @@ const FleetViz = {
       }
     });
 
-    // Draw pulses + trails
     this.pulses.forEach(p => {
-      // Trail
       p.trail.forEach((t, i) => {
         const alpha = (1 - t.age) * (i / p.trail.length) * 0.6;
         ctx.beginPath();
@@ -729,34 +726,28 @@ const FleetViz = {
         ctx.globalAlpha = Math.max(0, alpha);
         ctx.fill();
       });
-      // Head
       const wire = this.wires[p.wireIdx];
       const pos = this.bezierPoint(wire.from, wire.cp, wire.to, p.t);
       ctx.globalAlpha = 1;
       if (p.isLetter) {
-        // Envelope shape for inbox messages
         const s = p.size * 1.3;
         ctx.fillStyle = '#eab308';
         ctx.fillRect(pos.x - s, pos.y - s * 0.6, s * 2, s * 1.2);
-        // Flap
         ctx.beginPath();
         ctx.moveTo(pos.x - s, pos.y - s * 0.6);
         ctx.lineTo(pos.x, pos.y + s * 0.1);
         ctx.lineTo(pos.x + s, pos.y - s * 0.6);
         ctx.fillStyle = '#ca8a04';
         ctx.fill();
-        // Tiny text
         ctx.font = '6px sans-serif';
         ctx.fillStyle = '#000';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText('📬', pos.x, pos.y);
       } else {
-        // Glowing orb for instant dispatch
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, p.size, 0, Math.PI * 2);
         ctx.fillStyle = p.color;
         ctx.fill();
-        // Bright core
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, p.size * 0.4, 0, Math.PI * 2);
         ctx.fillStyle = '#fff';
@@ -764,7 +755,6 @@ const FleetViz = {
       }
     });
 
-    // Draw particles
     this.particles.forEach(p => {
       const alpha = (p.life / p.maxLife) * 0.5;
       ctx.globalAlpha = Math.max(0, alpha);
@@ -775,9 +765,7 @@ const FleetViz = {
     });
     ctx.globalAlpha = 1;
 
-    // Draw machine nodes
     this.nodes.forEach(n => {
-      // Glow halo
       if (n.glow > 0.05) {
         const grad = ctx.createRadialGradient(n.x, n.y, n.size, n.x, n.y, n.size + 20 + n.glow * 15);
         grad.addColorStop(0, n.color + Math.round(n.glow * 60).toString(16).padStart(2, '0'));
@@ -787,7 +775,6 @@ const FleetViz = {
         ctx.fillStyle = grad;
         ctx.fill();
       }
-      // Machine body
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.size, 0, Math.PI * 2);
       ctx.fillStyle = n.processing ? n.color : '#1a1a24';
@@ -795,10 +782,8 @@ const FleetViz = {
       ctx.strokeStyle = n.color;
       ctx.lineWidth = 2;
       ctx.stroke();
-      // OS icon or mailbox
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       if (n.hasMailbox) {
-        // Mailbox icon — pulsing yellow
         ctx.font = `${n.size * 1.1}px sans-serif`;
         ctx.globalAlpha = 0.7 + Math.sin(performance.now() * 0.003) * 0.3;
         ctx.fillStyle = '#eab308';
@@ -810,11 +795,9 @@ const FleetViz = {
         ctx.fillStyle = '#fff';
         ctx.fillText(icon, n.x, n.y);
       }
-      // Name label
       ctx.font = '10px Inter, sans-serif';
       ctx.fillStyle = n.color;
       ctx.fillText(n.name, n.x, n.y + n.size + 14);
-      // Mailbox status label
       if (n.hasMailbox) {
         ctx.font = '8px Inter, sans-serif';
         ctx.fillStyle = '#eab308';
@@ -822,9 +805,7 @@ const FleetViz = {
       }
     });
 
-    // Draw center node (HQ)
     const cn = this.centerNode;
-    // Glow
     const cGrad = ctx.createRadialGradient(cn.x, cn.y, cn.size, cn.x, cn.y, cn.size + 30 + cn.glow * 20);
     cGrad.addColorStop(0, '#d97706' + Math.round(cn.glow * 50).toString(16).padStart(2, '0'));
     cGrad.addColorStop(1, 'transparent');
@@ -832,7 +813,6 @@ const FleetViz = {
     ctx.arc(cn.x, cn.y, cn.size + 30 + cn.glow * 20, 0, Math.PI * 2);
     ctx.fillStyle = cGrad;
     ctx.fill();
-    // Hexagon body
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2 - Math.PI / 6;
@@ -862,7 +842,7 @@ const FleetViz = {
 
 // ── Game State ──
 const G = {
-  phase: 0, // 0=company, 1=machines, 2=network, 3=kb, 4=play
+  phase: 0,
   company: { name: '', industry: '' },
   machines: [],
   kb: { files: {}, inboxes: {} },
@@ -881,18 +861,25 @@ const G = {
   showCelebration: null,
   skynetTriggered: false,
   score: 0,
+  lastRankTime: 0, // Change #8: guard against rank-up flash spam
+  showLeaderboard: false, // Change #9: leaderboard toggle
 };
 
 const PHASES = ['Company', 'Machines', 'Install', 'Network', 'Knowledge Base', 'Fleet Operations'];
 
+// Change #10: More ranks, slower progression, score-based only
 const RANKS = [
-  { name: 'Cadet', icon: '🔰', req: () => G.phase >= 4, desc: 'You have machines. They have potential.', next: 'Complete 3 tasks to rank up' },
-  { name: 'Ensign', icon: '⚓', req: () => G.tasksCompleted >= 3, desc: 'Your fleet is starting to listen.', next: 'Use both Inbox AND Instant dispatch' },
-  { name: 'Lieutenant', icon: '🎖️', req: () => G.usedInbox && G.usedInstant, desc: 'You understand async AND sync. Dangerous.', next: 'Fire 10 hooks' },
-  { name: 'Commander', icon: '🏅', req: () => G.hooksFired >= 10, desc: 'The hooks are doing the work. You\'re just watching.', next: 'Learn 5+ concepts' },
-  { name: 'Captain', icon: '⭐', req: () => G.conceptsLearned.length >= 5, desc: 'You could teach this stuff now.', next: 'Complete 10 tasks to achieve Fleet Admiral' },
-  { name: 'Fleet Admiral', icon: '👑', req: () => G.tasksCompleted >= 10 && G.conceptsLearned.length >= 5, desc: 'Your fleet has achieved autonomous coordination.', next: 'But can you reach... further?' },
-  { name: 'SKYNET', icon: '🤖', req: () => G.tasksCompleted >= 25, desc: 'Your fleet is now self-aware. It has opinions about your code. Humanity had a good run.', next: null },
+  { name: 'Cadet',         icon: '🔰', scoreReq: 0,    desc: 'You have machines. They have potential.',                        next: 'Reach 25 pts for Ensign' },
+  { name: 'Ensign',        icon: '⚓', scoreReq: 25,   desc: 'Your fleet is starting to listen.',                              next: 'Reach 75 pts for Lieutenant' },
+  { name: 'Lieutenant',    icon: '🎖️', scoreReq: 75,   desc: 'You understand async AND sync. Dangerous.',                      next: 'Reach 150 pts for Commander' },
+  { name: 'Commander',     icon: '🏅', scoreReq: 150,  desc: 'The hooks are doing the work. You\'re just watching.',            next: 'Reach 300 pts for Captain' },
+  { name: 'Captain',       icon: '⭐', scoreReq: 300,  desc: 'You could teach this stuff now.',                                next: 'Reach 500 pts for Commodore' },
+  { name: 'Commodore',     icon: '🎗️', scoreReq: 500,  desc: 'Your fleet runs like a well-oiled machine.',                     next: 'Reach 750 pts for Rear Admiral' },
+  { name: 'Rear Admiral',  icon: '🏵️', scoreReq: 750,  desc: 'Half the fleet salutes when you enter the room.',                next: 'Reach 1000 pts for Vice Admiral' },
+  { name: 'Vice Admiral',  icon: '🔱', scoreReq: 1000, desc: 'Even the GPUs are impressed.',                                   next: 'Reach 1500 pts for Admiral' },
+  { name: 'Admiral',       icon: '👑', scoreReq: 1500, desc: 'Your fleet has achieved autonomous coordination.',               next: 'Reach 2500 pts for Fleet Admiral' },
+  { name: 'Fleet Admiral', icon: '🌟', scoreReq: 2500, desc: 'Legends are written about commanders like you.',                 next: 'Reach 5000 pts for... SKYNET' },
+  { name: 'SKYNET',        icon: '🤖', scoreReq: 5000, desc: 'Your fleet is now self-aware. It has opinions about your code. Humanity had a good run.', next: null },
 ];
 
 const OS_OPTIONS = ['macOS', 'Windows', 'Linux'];
@@ -906,27 +893,29 @@ const COLORS = ['#6366f1', '#f97316', '#ef4444', '#22c55e', '#3b82f6', '#eab308'
 const COMPANY_NAMES = ['Nebula Labs', 'Vortex AI', 'Iron Forge', 'Quantum Leap', 'Dark Matter', 'Pixel Storm', 'Deep Signal', 'Nova Core', 'Lunar Tide', 'Cipher Works', 'Ghost Protocol', 'Black Mesa', 'Aperture Science', 'Stark Industries', 'Weyland Corp', 'Tyrell Systems', 'Cyberdyne', 'Umbrella Corp', 'Gekko Capital', 'Pied Piper'];
 const MACHINE_NAMES = ['Fortress', 'Archon', 'Phantom', 'Titan', 'Obelisk', 'Sentinel', 'Nexus', 'Spectre', 'Colossus', 'Hydra', 'Atlas', 'Cerberus', 'Omega', 'Vanguard', 'Eclipse', 'Monolith', 'Tempest', 'Wraith', 'Bastion', 'Goliath'];
 const TASK_IDEAS = [
-  // System ops
   'check disk space', 'run the test suite', 'deploy to staging', 'check GPU utilization',
   'git status on all repos', 'list running processes', 'backup the database', 'check network latency',
   'update dependencies', 'profile memory usage', 'scan for large files', 'restart the web server',
   'pull latest on all projects', 'benchmark the GPU', 'analyze log files', 'report uptime and load average',
-  // AI/ML specific
   'install Gemma 4 27B and run coding benchmarks', 'download Llama 4 Scout and test inference speed',
   'run the eval suite against all local models', 'check ollama status and loaded models',
   'fine-tune the code completion model on our codebase', 'benchmark GPU VRAM usage under load',
-  'install Unreal Engine 5.6 and verify GPU drivers', 'pull the latest ML training dataset from S3',
+  // Change #4: Unreal Engine 5.7 everywhere
+  'install Unreal Engine 5.7 and verify GPU drivers', 'pull the latest ML training dataset from S3',
   'run A/B comparison: Gemma4 vs Qwen3 on code tasks', 'start a distributed training run across the fleet',
 ];
 
-// Fleet-wide task templates (shown as special buttons in play phase)
+// Change #2: Added 3 more FLEET_TASKS + Change #4: UE 5.7
 const FLEET_TASKS = [
-  { label: 'Install Unreal Engine 5.6 on all machines', icon: '🎮', points: 50 },
+  { label: 'Install Unreal Engine 5.7 on all machines', icon: '🎮', points: 50 },
   { label: 'Install Gemma4 27B and run coding benchmarks', icon: '🧠', points: 50 },
   { label: 'Pull latest code on every machine', icon: '📥', points: 20 },
   { label: 'Run the full test suite fleet-wide', icon: '🧪', points: 30 },
   { label: 'Check disk space across the fleet', icon: '💾', points: 15 },
   { label: 'Benchmark all GPUs', icon: '📊', points: 40 },
+  { label: 'Install Ollama and pull Llama 4 Scout', icon: '🦙', points: 45 },
+  { label: 'Restart all Docker containers', icon: '🐳', points: 20 },
+  { label: 'Collect system health reports from all nodes', icon: '🏥', points: 25 },
 ];
 
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -956,7 +945,7 @@ function randomizeMachine() {
 function randomizeFleet() {
   sfxClick();
   G.machines = [];
-  const count = 3 + Math.floor(Math.random() * 6); // 3-8 machines
+  const count = 3 + Math.floor(Math.random() * 6);
   for (let i = 0; i < count; i++) {
     const existing = G.machines.map(m => m.name);
     G.machines.push({
@@ -995,27 +984,91 @@ function getResponse(task, machine) {
   return TASK_RESPONSES.default(machine);
 }
 
+// ── Change #9: Leaderboard system ──
+function getLeaderboardRankName(score) {
+  let rankName = RANKS[0].name;
+  for (let i = RANKS.length - 1; i >= 0; i--) {
+    if (score >= RANKS[i].scoreReq) { rankName = RANKS[i].name; break; }
+  }
+  return rankName;
+}
+
+function generateFakeLeaderboard() {
+  // Seed from date so it's consistent within a day
+  const dateStr = new Date().toISOString().slice(0, 10);
+  let seed = 0;
+  for (let i = 0; i < dateStr.length; i++) seed = ((seed << 5) - seed + dateStr.charCodeAt(i)) | 0;
+  function seededRandom() { seed = (seed * 16807 + 0) % 2147483647; return (seed & 0x7fffffff) / 2147483647; }
+
+  const fakeNames = [
+    'Nebula Labs', 'Vortex AI', 'Quantum Leap', 'Dark Matter', 'Iron Forge',
+    'Pixel Storm', 'Cipher Works', 'Nova Core', 'Ghost Protocol', 'Deep Signal',
+    'Lunar Tide', 'Aperture R&D', 'Tyrell Systems', 'Stark HQ', 'Pied Piper',
+    'Black Mesa', 'Cyberdyne', 'Weyland Corp', 'Gekko Capital', 'Acme Corp'
+  ];
+
+  const entries = [];
+  const count = 15 + Math.floor(seededRandom() * 6);
+  for (let i = 0; i < count; i++) {
+    const score = Math.floor(seededRandom() * 6000);
+    entries.push({
+      name: fakeNames[i % fakeNames.length],
+      score: score,
+      rank: getLeaderboardRankName(score),
+      isPlayer: false
+    });
+  }
+  return entries;
+}
+
+function getLeaderboard() {
+  const entries = generateFakeLeaderboard();
+  // Insert the player
+  entries.push({
+    name: G.company.name || 'You',
+    score: G.score,
+    rank: RANKS[G.currentRank].name,
+    isPlayer: true
+  });
+  // Sort descending
+  entries.sort((a, b) => b.score - a.score);
+  return entries;
+}
+
+function getPlayerPosition() {
+  const lb = getLeaderboard();
+  const idx = lb.findIndex(e => e.isPlayer);
+  return { position: idx + 1, total: lb.length };
+}
+
+function saveScore() {
+  try {
+    localStorage.setItem('fleet-commander-score', JSON.stringify({
+      name: G.company.name, score: G.score, rank: RANKS[G.currentRank].name
+    }));
+  } catch(e) {}
+}
+
 // ── Render ──
 function render() {
   const el = document.getElementById('game');
-  el.innerHTML = renderPhase() + renderCelebration();
+  el.innerHTML = renderPhase() + renderCelebration() + renderLeaderboardOverlay();
   renderPhaseDots();
   bindEvents();
-  // Spawn confetti if showing a celebration
   if (G.showCelebration !== null) spawnConfetti();
-  // Add click sounds to all buttons
   document.querySelectorAll('.btn, .machine-slot, .fleet-card, .inbox-tab, .phase-dot').forEach(el => {
     if (!el._sfx) { el._sfx = true; el.addEventListener('click', sfxClick); }
   });
 
-  // Init fleet visualization if canvas exists
+  // Change #1: Don't re-init FleetViz if it's already running
   const vizCanvas = document.getElementById('fleet-viz-canvas');
   if (vizCanvas && G.phase === 5 && G.showViz) {
-    // Scale canvas for crisp rendering
+    if (FleetViz.animFrame) return; // Already running, don't destroy state
     const rect = vizCanvas.getBoundingClientRect();
     vizCanvas.width = rect.width * (window.devicePixelRatio || 1);
-    vizCanvas.height = 400 * (window.devicePixelRatio || 1);
-    vizCanvas.style.height = '400px';
+    // Change #6: 300px height
+    vizCanvas.height = 300 * (window.devicePixelRatio || 1);
+    vizCanvas.style.height = '300px';
     const ctx = vizCanvas.getContext('2d');
     ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
     FleetViz.canvas = vizCanvas;
@@ -1133,7 +1186,6 @@ function renderMachineSetup() {
   `;
 }
 
-// ── Phase 2: Network (Tailscale) ──
 // ── Phase 2: Install Software ──
 const INSTALL_STEPS = [
   { id: 'tailscale', name: 'Tailscale', icon: '🔗', cmd: { macOS: 'brew install tailscale', Windows: 'winget install Tailscale', Linux: 'curl -fsSL https://tailscale.com/install.sh | sh' }, time: 1200 },
@@ -1154,14 +1206,16 @@ function installOn(machineIdx, stepId) {
   setTimeout(() => {
     m.installed[stepId] = true;
     m.installing = null;
-    G.score += 5;
+    // Change #10: installs give 1 point each
+    G.score += 1;
+    saveScore();
     sfxComplete();
-    // Auto-check if all done
     const allDone = G.machines.every(m => INSTALL_STEPS.every(s => m.installed && m.installed[s.id]));
     if (allDone) {
       sfxRankUp();
       showToast('All Installed!', 'Every machine is ready. Time to connect the network.', 'success');
     }
+    checkRank();
     render();
   }, step.time + Math.random() * 500);
 }
@@ -1342,18 +1396,27 @@ function renderKBSetup() {
 function renderPlay() {
   const rank = RANKS[G.currentRank];
   const nextRank = RANKS[G.currentRank + 1];
-  // Progress to next rank (rough %)
+  // Change #10: Progress is purely score-based
   let progress = 100;
   if (nextRank) {
-    if (nextRank.req === RANKS[1].req) progress = Math.min(100, G.tasksCompleted / 3 * 100);
-    else if (nextRank.req === RANKS[2].req) progress = (G.usedInbox ? 50 : 0) + (G.usedInstant ? 50 : 0);
-    else if (nextRank.req === RANKS[3].req) progress = Math.min(100, G.hooksFired / 10 * 100);
-    else if (nextRank.req === RANKS[4].req) progress = Math.min(100, G.conceptsLearned.length / 5 * 100);
-    else if (nextRank.req === RANKS[5].req) progress = Math.min(100, ((G.tasksCompleted >= 10 ? 50 : G.tasksCompleted / 10 * 50) + (G.conceptsLearned.length >= 5 ? 50 : G.conceptsLearned.length / 5 * 50)));
-    else if (nextRank.req === RANKS[6].req) progress = Math.min(100, G.tasksCompleted / 25 * 100);
+    const currentReq = rank.scoreReq;
+    const nextReq = nextRank.scoreReq;
+    progress = Math.min(100, Math.max(0, (G.score - currentReq) / (nextReq - currentReq) * 100));
   }
 
+  // Change #9: Leaderboard position
+  const lbPos = getPlayerPosition();
+
   return `
+    <!-- Change #9: Leaderboard bar -->
+    <div class="leaderboard-bar">
+      <div class="lb-rank">Your rank: #${lbPos.position} of ${lbPos.total} players</div>
+      <div class="lb-actions">
+        <button class="btn btn-sm" style="font-size:12px" onclick="G.showLeaderboard=true;render()">🏆 Leaderboard</button>
+        <a href="https://github.com/ibrews/claude-fleet" target="_blank" class="btn btn-sm btn-green" style="font-size:12px;text-decoration:none">✅ I'm done — take me to the repo!</a>
+      </div>
+    </div>
+
     <div class="rank-bar" ${G.skynetTriggered ? 'style="border-color:var(--red);background:#1a0808"' : ''}>
       <div class="rank-icon">${rank.icon}</div>
       <div>
@@ -1362,8 +1425,8 @@ function renderPlay() {
       </div>
       <div class="rank-progress">
         ${nextRank ? `
-          <div class="rank-next">Next: ${nextRank.icon} ${nextRank.name}</div>
-          <div class="rank-progress-bar"><div class="rank-progress-fill" style="width:${Math.round(progress)}%${G.currentRank >= 5 ? ';background:linear-gradient(90deg,var(--red),#ff6b6b)' : ''}"></div></div>
+          <div class="rank-next">Next: ${nextRank.icon} ${nextRank.name} (${nextRank.scoreReq} pts)</div>
+          <div class="rank-progress-bar"><div class="rank-progress-fill" style="width:${Math.round(progress)}%${G.currentRank >= 8 ? ';background:linear-gradient(90deg,var(--red),#ff6b6b)' : ''}"></div></div>
         ` : `<div class="rank-next" style="color:${G.skynetTriggered ? 'var(--red)' : 'var(--green)'}">Maximum rank achieved</div>`}
       </div>
     </div>
@@ -1396,7 +1459,7 @@ function renderPlay() {
     ${G.showViz ? `
     <div class="fleet-viz-container">
       <button class="fleet-viz-toggle" onclick="G.showViz=false;FleetViz.stop();render()">✕ Hide Viz</button>
-      <canvas id="fleet-viz-canvas" class="fleet-viz-canvas" width="800" height="400"></canvas>
+      <canvas id="fleet-viz-canvas" class="fleet-viz-canvas" width="800" height="300"></canvas>
     </div>
     ` : `<div style="text-align:right;margin-bottom:8px"><button class="btn btn-sm" style="font-size:11px" onclick="G.showViz=true;render()">👁 Show Fleet Viz</button></div>`}
 
@@ -1412,13 +1475,10 @@ function renderPlay() {
       `).join('')}
     </div>
 
+    <!-- Change #5: Removed duplicate learn badges from Dispatch Task header -->
     <div class="card">
       <div class="card-header">
         <h2>Dispatch Task</h2>
-        <div style="display:flex;gap:8px">
-          <span class="learn-badge" title="Inbox mode writes to the machine's inbox file. It picks up tasks on next session start.">📬 Inbox</span>
-          <span class="learn-badge" title="Instant mode SSHes to the machine and runs headless Claude Code. Results come back in seconds.">⚡ Instant</span>
-        </div>
       </div>
       <div class="card-body">
         <div class="dispatch-bar">
@@ -1438,6 +1498,7 @@ function renderPlay() {
       </div>
     </div>
 
+    <!-- Change #3: Fleet-wide ops with both Instant and Inbox modes -->
     <div class="card">
       <div class="card-header">
         <h2>🌐 Fleet-Wide Operations</h2>
@@ -1446,14 +1507,19 @@ function renderPlay() {
       <div class="card-body">
         <div class="concept-tooltip" style="margin-bottom:12px">
           <strong>Before fleet:</strong> You'd SSH into each machine one-by-one, run the same command, wait, repeat.
-          <strong>After fleet:</strong> One click. Every machine works in parallel. Results stream back.
+          <strong>After fleet:</strong> One click. Every machine works in parallel. Results stream back.<br>
+          <strong>⚡ Instant</strong> = SSH + immediate execution. <strong>📬 Inbox</strong> = write to all inboxes, machines process on next session.
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
-          ${FLEET_TASKS.map(t => `
-            <button class="btn" style="font-size:12px;padding:8px 14px" onclick="dispatchFleetWide('${t.label}', ${t.points})">
-              ${t.icon} ${t.label.length > 35 ? t.label.slice(0,35) + '...' : t.label} <span style="color:var(--accent);font-size:10px">+${t.points}</span>
-            </button>
-          `).join('')}
+        <div class="fleet-task-row">
+          ${FLEET_TASKS.map(t => {
+            const safeLabel = t.label.replace(/'/g, "\\'");
+            return `
+            <div class="fleet-task-item">
+              <span class="fleet-task-label">${t.icon} ${t.label.length > 30 ? t.label.slice(0,30) + '...' : t.label} <span style="color:var(--accent);font-size:10px">+${t.points}</span></span>
+              <button class="fleet-mode-btn" onclick="dispatchFleetWide('${safeLabel}', ${t.points}, 'instant')" title="Instant: SSH to all machines now">⚡</button>
+              <button class="fleet-mode-btn inbox-mode" onclick="dispatchFleetWide('${safeLabel}', ${t.points}, 'inbox')" title="Inbox: Write to all machine inboxes">📬</button>
+            </div>`;
+          }).join('')}
         </div>
 
         <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
@@ -1461,7 +1527,8 @@ function renderPlay() {
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <input id="fleet-custom-task" placeholder="Or type your own..." style="flex:1;min-width:200px;padding:8px 12px;font-size:13px" />
             <button class="dice-btn" onclick="document.getElementById('fleet-custom-task').value=pick(TASK_IDEAS)">🎲</button>
-            <button class="btn btn-green" style="font-size:12px" onclick="const t=document.getElementById('fleet-custom-task').value.trim();if(t){dispatchFleetWide(t,25);document.getElementById('fleet-custom-task').value=''}">🌐 Send to All</button>
+            <button class="btn btn-green" style="font-size:12px" onclick="const t=document.getElementById('fleet-custom-task').value.trim();if(t){dispatchFleetWide(t,25,'instant');document.getElementById('fleet-custom-task').value=''}">⚡ Send to All</button>
+            <button class="btn" style="font-size:12px;background:var(--yellow);border-color:var(--yellow);color:#000" onclick="const t=document.getElementById('fleet-custom-task').value.trim();if(t){dispatchFleetWide(t,25,'inbox');document.getElementById('fleet-custom-task').value=''}">📬 Inbox All</button>
           </div>
           <div style="margin-top:10px;font-size:12px;color:var(--dim)">Or build one:</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
@@ -1470,14 +1537,15 @@ function renderPlay() {
             </select>
             <select id="ml-target" style="width:auto;padding:6px 10px;font-size:12px">
               <option>Gemma4 27B</option><option>Llama 4 Scout</option><option>Qwen3 Coder 30B</option><option>Mistral Large</option>
-              <option>Unreal Engine 5.6</option><option>Docker containers</option><option>CUDA drivers</option><option>the test suite</option>
+              <option>Unreal Engine 5.7</option><option>Docker containers</option><option>CUDA drivers</option><option>the test suite</option>
               <option>monitoring agents</option><option>the web server</option><option>SSL certificates</option><option>backup scripts</option>
             </select>
             <span style="color:var(--dim)">on</span>
             <select id="ml-scope" style="width:auto;padding:6px 10px;font-size:12px">
               <option>all machines</option><option>GPU machines only</option><option>macOS machines</option><option>Windows machines</option><option>Linux machines</option>
             </select>
-            <button class="btn btn-primary btn-sm" onclick="const v=document.getElementById('ml-verb').value,t=document.getElementById('ml-target').value,s=document.getElementById('ml-scope').value;dispatchFleetWide(v+' '+t+' on '+s, 30)">Go!</button>
+            <button class="btn btn-primary btn-sm" onclick="const v=document.getElementById('ml-verb').value,t=document.getElementById('ml-target').value,s=document.getElementById('ml-scope').value;dispatchFleetWide(v+' '+t+' on '+s, 30, 'instant')">⚡ Go!</button>
+            <button class="btn btn-sm" style="background:var(--yellow);border-color:var(--yellow);color:#000" onclick="const v=document.getElementById('ml-verb').value,t=document.getElementById('ml-target').value,s=document.getElementById('ml-scope').value;dispatchFleetWide(v+' '+t+' on '+s, 30, 'inbox')">📬 Go!</button>
           </div>
         </div>
       </div>
@@ -1515,37 +1583,100 @@ function initPlay() {
 
 function addScore(points, reason) {
   G.score += points;
+  saveScore();
   showToast(`+${points} pts`, reason, 'info');
 }
 
-function dispatchFleetWide(task, points) {
+// Change #3: dispatchFleetWide now accepts mode parameter
+function dispatchFleetWide(task, points, mode) {
+  mode = mode || 'instant';
   sfxDispatch();
   G.usedFleetWide = true;
   learnConcept('fleet-wide-dispatch');
-  addActivity('dispatch', `🌐 <strong>Fleet-wide:</strong> "${task}" → ${G.machines.length} machines`);
-  addScore(points, `Fleet-wide: ${task}`);
-  if (FleetViz.enabled) FleetViz.sendToAll('#d97706');
 
-  G.machines.forEach((m, i) => {
-    setTimeout(() => {
-      m.status = 'busy';
-      m.currentTask = task;
-      render();
+  if (mode === 'inbox') {
+    // Inbox mode: slow letters, delayed session-start narrative for each machine
+    addActivity('dispatch', `📬 <strong>Fleet-wide inbox:</strong> "${task}" → ${G.machines.length} inboxes`);
+    // Change #10: fleet-wide inbox gives 1 per machine
+    addScore(1 * G.machines.length, `Fleet inbox: ${task}`);
+    if (FleetViz.enabled) FleetViz.sendLettersToAll('#eab308');
+    learnConcept('inbox-dispatch');
+    G.usedInbox = true;
+
+    G.machines.forEach((m, i) => {
+      const inboxKey = m.name.toLowerCase();
+      if (!G.kb.inboxes[inboxKey]) G.kb.inboxes[inboxKey] = [];
+      G.kb.inboxes[inboxKey].push({ task, from: 'you', time: new Date().toISOString() });
+
+      // Phase 1: Letter arrives at mailbox
       setTimeout(() => {
-        const response = getResponse(task, m);
-        m.status = 'online';
-        m.currentTask = null;
-        G.tasksCompleted++;
-        G.hooksFired += 2;
-        addActivity('complete', `✅ <strong>${m.name}</strong>: ${response.split('\\n')[0].slice(0, 80)}`);
-        sfxComplete();
-        if (FleetViz.enabled) FleetViz.deactivateMachine(i);
-        checkRank();
+        m.status = 'waiting';
+        addActivity('info', `📬 <strong>${m.name}</strong>: Task arrived in inbox.`);
         render();
-      }, 1500 + Math.random() * 2000);
-    }, i * 600);
-  });
-  render();
+
+        // Phase 2: Session starts
+        setTimeout(() => {
+          if (FleetViz.enabled) FleetViz.sessionStartMachine(i);
+          addActivity('hook', `🚀 <strong>Session started on ${m.name}!</strong> SessionStart hook fires → reads inbox`);
+          G.hooksFired++;
+          m.status = 'busy';
+          m.currentTask = task;
+          render();
+
+          // Phase 3: Task completes
+          setTimeout(() => {
+            const response = getResponse(task, m);
+            m.status = 'online';
+            m.currentTask = null;
+            G.tasksCompleted++;
+            G.hooksFired++;
+
+            const idx = G.kb.inboxes[inboxKey].findIndex(item => item.task === task);
+            if (idx >= 0) G.kb.inboxes[inboxKey].splice(idx, 1);
+
+            addActivity('complete', `✅ <strong>${m.name}</strong>: ${response.split('\n')[0].slice(0, 80)}`);
+            sfxComplete();
+            if (FleetViz.enabled) {
+              FleetViz.fireworks(i);
+              FleetViz.deactivateMachine(i);
+            }
+            checkRank();
+            render();
+          }, 2000 + Math.random() * 2000);
+        }, 2500 + Math.random() * 1500);
+      }, 2000 + i * 400);
+    });
+    render();
+  } else {
+    // Instant mode (original behavior)
+    addActivity('dispatch', `⚡ <strong>Fleet-wide instant:</strong> "${task}" → ${G.machines.length} machines`);
+    // Change #10: fleet-wide instant gives 2 per machine
+    addScore(2 * G.machines.length, `Fleet instant: ${task}`);
+    if (FleetViz.enabled) FleetViz.sendToAll('#d97706');
+    learnConcept('instant-dispatch');
+    G.usedInstant = true;
+
+    G.machines.forEach((m, i) => {
+      setTimeout(() => {
+        m.status = 'busy';
+        m.currentTask = task;
+        render();
+        setTimeout(() => {
+          const response = getResponse(task, m);
+          m.status = 'online';
+          m.currentTask = null;
+          G.tasksCompleted++;
+          G.hooksFired += 2;
+          addActivity('complete', `✅ <strong>${m.name}</strong>: ${response.split('\\n')[0].slice(0, 80)}`);
+          sfxComplete();
+          if (FleetViz.enabled) FleetViz.deactivateMachine(i);
+          checkRank();
+          render();
+        }, 1500 + Math.random() * 2000);
+      }, i * 600);
+    });
+    render();
+  }
 }
 
 function addActivity(type, message) {
@@ -1555,17 +1686,27 @@ function addActivity(type, message) {
   if (G.activity.length > 50) G.activity.pop();
 }
 
+// Change #8: Fix promotion flash spam
 function checkRank() {
+  // Don't trigger a new celebration while one is already showing
+  if (G.showCelebration !== null) return;
+  // Don't allow rank-ups within 2 seconds of each other
+  const now = Date.now();
+  if (now - G.lastRankTime < 2000) return;
+
+  // Change #10: score-based rank check
   let newRank = 0;
   for (let i = RANKS.length - 1; i >= 0; i--) {
-    if (RANKS[i].req()) { newRank = i; break; }
+    if (G.score >= RANKS[i].scoreReq) { newRank = i; break; }
   }
   if (newRank > G.currentRank) {
+    G.lastRankTime = now;
     G.currentRank = newRank;
     G.showCelebration = newRank;
     if (newRank === RANKS.length - 1) { G.skynetTriggered = true; sfxSkynet(); stopMusic(); }
     else sfxRankUp();
-    showToast(`Promoted!`, `You are now: ${RANKS[newRank].icon} ${RANKS[newRank].name}`, 'success');
+    showToast('Promoted!', `You are now: ${RANKS[newRank].icon} ${RANKS[newRank].name}`, 'success');
+    saveScore();
   }
 }
 
@@ -1622,19 +1763,40 @@ function renderCelebration() {
         ` : ''}
         ${isSkynet ? `
           <button class="btn" style="background:var(--red);border-color:var(--red);color:#fff;margin-bottom:16px" onclick="G.showCelebration=null;render()">Accept Our Robot Overlords</button>
-        `  : ''}
-        ${isSkynet ? `
-          <div style="margin-top:16px;border-radius:10px;overflow:hidden;border:1px solid var(--border)">
-            <video src="images/claude-fleet-promo.mp4" autoplay muted playsinline loop style="width:100%;display:block;border-radius:10px"></video>
-          </div>
           <div style="margin-top:16px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
             <a href="https://github.com/ibrews/claude-fleet" target="_blank" class="btn btn-primary" style="text-decoration:none;font-size:14px;padding:12px 24px">⭐ Star on GitHub</a>
-            <button class="btn" style="font-size:14px;padding:12px 24px" onclick="G.showCelebration=null;G.skynetTriggered=false;G.tasksCompleted=0;G.hooksFired=0;G.currentRank=0;G.conceptsLearned=['fleet-setup'];G.activity=[];startMusic();render()">🔄 Play Again</button>
+            <button class="btn" style="font-size:14px;padding:12px 24px" onclick="G.showCelebration=null;G.skynetTriggered=false;G.tasksCompleted=0;G.hooksFired=0;G.currentRank=0;G.score=0;G.conceptsLearned=['fleet-setup'];G.activity=[];startMusic();render()">🔄 Play Again</button>
           </div>
           <div style="font-size:12px;color:var(--dim);margin-top:12px">~20 min to set up for real. Works with any machines you have.</div>
         ` : `
           <div style="font-size:12px;color:var(--dim);margin-top:8px">${rank.next || ''}</div>
         `}
+      </div>
+    </div>
+  `;
+}
+
+// Change #9: Leaderboard overlay
+function renderLeaderboardOverlay() {
+  if (!G.showLeaderboard) return '';
+  const lb = getLeaderboard();
+  const top10 = lb.slice(0, 15); // Show top 15
+
+  return `
+    <div class="leaderboard-overlay" onclick="G.showLeaderboard=false;render()">
+      <div class="leaderboard-card" onclick="event.stopPropagation()">
+        <h2>🏆 Leaderboard</h2>
+        ${top10.map((entry, i) => `
+          <div class="lb-entry ${entry.isPlayer ? 'you' : ''}">
+            <div class="lb-pos">${i < 3 ? ['🥇','🥈','🥉'][i] : '#' + (i+1)}</div>
+            <div class="lb-name" style="${entry.isPlayer ? 'color:var(--accent)' : ''}">${esc(entry.name)} ${entry.isPlayer ? '(you)' : ''}</div>
+            <div class="lb-rank-badge">${entry.rank}</div>
+            <div class="lb-score">${entry.score.toLocaleString()}</div>
+          </div>
+        `).join('')}
+        <div style="text-align:center;margin-top:16px">
+          <button class="btn btn-primary" onclick="G.showLeaderboard=false;render()">Close</button>
+        </div>
       </div>
     </div>
   `;
@@ -1657,14 +1819,12 @@ function showToast(title, msg, type = 'info') {
 
 function selectMachine(name) {
   G.selectedMachine = name;
-  // Could open detail panel — for now just highlight
 }
 
 function dispatchInbox(target, task) {
   if (!target || !task) return;
   const machine = G.machines.find(m => m.name === target);
   const machineIdx = G.machines.indexOf(machine);
-  // Send letter (slow envelope) instead of instant pulse
   if (FleetViz.enabled && machineIdx >= 0) FleetViz.sendLetter(machineIdx, '#eab308');
   const inbox = G.kb.inboxes[target.toLowerCase()] || [];
   inbox.push({ task, from: 'you', time: new Date().toISOString() });
@@ -1677,16 +1837,17 @@ function dispatchInbox(target, task) {
   G.usedInbox = true;
 
   sfxDispatch();
+  // Change #10: inbox gives 1 point
+  G.score += 1;
+  saveScore();
   showToast('📬 Written to Inbox', `${target} will process this on next session start.`, 'info');
   render();
 
-  // Phase 1: Letter arrives at mailbox (after travel time ~2s)
   setTimeout(() => {
     machine.status = 'waiting';
     addActivity('info', `📬 <strong>${target}</strong>: Task arrived in inbox. Waiting for next Claude session...`);
     render();
 
-    // Phase 2: Session starts! (~3s later)
     setTimeout(() => {
       if (FleetViz.enabled && machineIdx >= 0) FleetViz.sessionStartMachine(machineIdx);
       addActivity('hook', `🚀 <strong>New Claude session started on ${target}!</strong> SessionStart hook fires → pulls KB → reads inbox → finds pending task`);
@@ -1697,7 +1858,6 @@ function dispatchInbox(target, task) {
       machine.currentTask = task;
       render();
 
-      // Phase 3: Task completes with fireworks
       setTimeout(() => {
         const response = getResponse(task, machine);
         machine.status = 'online';
@@ -1714,13 +1874,13 @@ function dispatchInbox(target, task) {
         learnConcept('telegram');
 
         sfxComplete();
-        G.score += 10;
-        // Fireworks! (inbox completions get the big celebration)
+        G.score += 1;
+        saveScore();
         if (FleetViz.enabled && machineIdx >= 0) {
           FleetViz.fireworks(machineIdx);
           FleetViz.deactivateMachine(machineIdx);
         }
-        showToast(`🎆 ${target} (+10 pts)`, response.split('\n')[0], 'success');
+        showToast(`🎆 ${target} (+1 pt)`, response.split('\n')[0], 'success');
         checkRank();
         render();
       }, 2000 + Math.random() * 2000);
@@ -1746,6 +1906,9 @@ function dispatchInstant(target, task) {
   sfxDispatch();
   machine.status = 'busy';
   machine.currentTask = task;
+  // Change #10: instant gives 2 points
+  G.score += 2;
+  saveScore();
   showToast('⚡ Instant Dispatch', `SSH → ${target}. Running headless Claude...`, 'warn');
   render();
 
@@ -1758,9 +1921,10 @@ function dispatchInstant(target, task) {
     addActivity('complete', `✅ <strong>${target}</strong> responded:\n<pre style="margin-top:4px;font-size:11px;color:var(--text);white-space:pre-wrap">${esc(response)}</pre>`);
 
     sfxComplete();
-    G.score += 15;
+    G.score += 2;
+    saveScore();
     if (FleetViz.enabled && machineIdx >= 0) FleetViz.deactivateMachine(machineIdx);
-    showToast(`✅ ${target} (+15 pts)`, response.split('\n')[0], 'success');
+    showToast(`✅ ${target} (+2 pts)`, response.split('\n')[0], 'success');
     checkRank();
     render();
   }, 1500 + Math.random() * 2000);
@@ -1768,7 +1932,6 @@ function dispatchInstant(target, task) {
 
 // ── Event Binding ──
 function bindEvents() {
-  // Company
   const nameInput = document.getElementById('company-name');
   const industrySelect = document.getElementById('company-industry');
   if (nameInput) nameInput.oninput = () => { G.company.name = nameInput.value; document.getElementById('btn-next-company').disabled = !G.company.name || !G.company.industry; };
@@ -1776,7 +1939,6 @@ function bindEvents() {
   const nextCompanyBtn = document.getElementById('btn-next-company');
   if (nextCompanyBtn) nextCompanyBtn.onclick = () => { G.phase = 1; render(); };
 
-  // Add machine
   const addBtn = document.getElementById('btn-add-machine');
   if (addBtn) addBtn.onclick = () => {
     const name = document.getElementById('new-machine-name').value.trim();
@@ -1794,7 +1956,6 @@ function bindEvents() {
   const nextMachinesBtn = document.getElementById('btn-next-machines');
   if (nextMachinesBtn) nextMachinesBtn.onclick = () => { G.phase = 2; G.machines.forEach(m => { m.installed = {}; }); render(); };
 
-  // Inbox tabs
   document.querySelectorAll('.inbox-tab').forEach(tab => {
     tab.onclick = () => {
       document.querySelectorAll('.inbox-tab').forEach(t => t.classList.remove('active'));
@@ -1805,7 +1966,6 @@ function bindEvents() {
     };
   });
 
-  // Dispatch
   const dispatchInboxBtn = document.getElementById('btn-dispatch-inbox');
   const dispatchInstantBtn = document.getElementById('btn-dispatch-instant');
   const dispatchInput = document.getElementById('dispatch-task');
