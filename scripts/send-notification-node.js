@@ -46,7 +46,8 @@ fs.writeFileSync(filePath, JSON.stringify(notification, null, 2));
 // Git add, commit, push
 try {
   execSync('git add -A', { cwd: KB_DIR, stdio: 'pipe' });
-  execSync(`git commit -m "notify(${target}): ${subject}" --quiet`, { cwd: KB_DIR, stdio: 'pipe' });
+  const safeSubject = subject.replace(/["`$\\!&|;]/g, '').slice(0, 80);
+  execSync(`git commit -m "notify(${target}): ${safeSubject}" --quiet`, { cwd: KB_DIR, stdio: 'pipe' });
   execSync('git pull --rebase origin master --quiet', { cwd: KB_DIR, stdio: 'pipe' });
   execSync('git push origin master --quiet', { cwd: KB_DIR, stdio: 'pipe' });
   console.log(`Notification sent to ${target}: ${subject}`);

@@ -31,7 +31,8 @@ git add -A
 
 # Commit
 TIMESTAMP=$(date +%H%M)
-git commit -m "chore(kb): auto-sync from $MACHINE_NAME session-end $TODAY-$TIMESTAMP" --quiet 2>/dev/null || true
+SAFE_MACHINE=$(echo "$MACHINE_NAME" | tr -d '"$`\\!&|;/' | cut -c1-40)
+git commit -m "chore(kb): auto-sync from $SAFE_MACHINE session-end $TODAY-$TIMESTAMP" --quiet 2>/dev/null || true
 
 # Pull (rebase to avoid merge commits) and push
 # Log failures so users can debug (hooks run silently)

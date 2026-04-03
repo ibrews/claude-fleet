@@ -47,7 +47,8 @@ fs.writeFileSync(path.join(notifDir, filename), JSON.stringify({
 try {
     const relPath = path.join('notifications', target, filename);
     execSync(`git add "${relPath}"`, { cwd: kbDir, stdio: 'pipe' });
-    execSync(`git commit -m "notify(${target}): ${subject}" --quiet`, { cwd: kbDir, stdio: 'pipe' });
+    const safeSubject = subject.replace(/["`$\\!&|;]/g, '').slice(0, 80);
+    execSync(`git commit -m "notify(${target}): ${safeSubject}" --quiet`, { cwd: kbDir, stdio: 'pipe' });
     execSync('git push origin HEAD --quiet', { cwd: kbDir, stdio: 'pipe' });
     console.log(`📬 Notification sent to ${target}: ${subject}`);
 } catch (err) {

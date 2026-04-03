@@ -55,7 +55,8 @@ try {
   // Commit
   const timestamp = new Date().toTimeString().slice(0, 5).replace(':', '');
   try {
-    run(`git commit -m "chore(kb): auto-sync from ${machine} session-end ${today}-${timestamp}" --quiet`);
+    const safeMachine = machine.replace(/["`$\\!&|;/]/g, '').slice(0, 40);
+    run(`git commit -m "chore(kb): auto-sync from ${safeMachine} session-end ${today}-${timestamp}" --quiet`);
   } catch { }
 
   // Pull and push

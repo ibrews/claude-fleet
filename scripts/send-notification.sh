@@ -54,7 +54,9 @@ JSONEOF
 cd "$KB_DIR"
 REL_PATH="notifications/$TARGET/$FILENAME"
 git add "$REL_PATH"
-git commit -m "notify($TARGET): $SUBJECT" --quiet 2>/dev/null
+# Sanitize subject for safe use in commit message (strip shell metacharacters)
+SAFE_SUBJECT=$(echo "$SUBJECT" | tr -d '"$`\\!&|;' | cut -c1-80)
+git commit -m "notify($TARGET): $SAFE_SUBJECT" --quiet 2>/dev/null
 
 if ! git push origin HEAD --quiet 2>/dev/null; then
     # Pull-rebase and retry if push failed (concurrent KB edits)
