@@ -162,7 +162,7 @@ The dispatch UI includes a model selector:
 ```json
 POST /api/fleet/dispatch
 {
-  "target": "fort",
+  "target": "beta",
   "message": "check disk space and report back",
   "sender": "control-center",
   "mode": "instant",

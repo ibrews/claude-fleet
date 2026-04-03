@@ -138,13 +138,26 @@ mkdir -p ~/claude-fleet
 cp ~/claude-fleet-repo/scripts/kb-inbox-check.sh ~/claude-fleet/
 cp ~/claude-fleet-repo/scripts/kb-session-end.sh ~/claude-fleet/
 cp ~/claude-fleet-repo/scripts/notify-human.js ~/claude-fleet/
-chmod +x ~/claude-fleet/kb-inbox-check.sh ~/claude-fleet/kb-session-end.sh
+cp ~/claude-fleet-repo/scripts/fleet-inbox-check.sh ~/claude-fleet/
+chmod +x ~/claude-fleet/*.sh
 ```
+
+**Important: Machine name detection.** Fleet scripts identify your machine by hostname to find the right inbox file (`inbox/<name>.md`). If your hostname doesn't match your inbox filename, set this environment variable:
+
+```bash
+export FLEET_MACHINE_NAME=alpha  # must match your inbox filename
+```
+
+Add it to your shell profile (`~/.bashrc`, `~/.zshrc`) so it persists. See [docs/07-hooks.md](docs/07-hooks.md) for details.
 
 Add to `~/.claude/settings.json` (the one file that must live in `~/.claude/`):
 
 ```json
 {
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "deny": ["Bash(rm -rf /)", "Bash(sudo rm -rf *)"]
+  },
   "hooks": {
     "SessionStart": [
       { "hooks": [{ "type": "command", "command": "$HOME/claude-fleet/kb-inbox-check.sh", "timeout": 30 }] }
@@ -157,11 +170,11 @@ Add to `~/.claude/settings.json` (the one file that must live in `~/.claude/`):
 }
 ```
 
-See [templates/settings.json](templates/settings.json) for the full structure including permissions.
+> **Note:** `bypassPermissions` prevents Claude from pausing for approval prompts, which is essential for autonomous fleet operation. See [templates/settings.json](templates/settings.json) for the full structure including mid-session notification hooks.
 
 ### 5. Configure the fleet trigger
 
-Edit `scripts/fleet-inbox-check.sh` — add your machines to `ALL_MACHINES` and update `get_claude_cmd()` with the correct paths.
+Edit `~/claude-fleet/fleet-inbox-check.sh` — update `ALL_MACHINES` with your machine names and `get_claude_cmd()` with the correct Claude paths for each machine.
 
 ### 6. Test it
 
@@ -171,8 +184,8 @@ cd ~/knowledge
 echo '- [ ] [2024-01-01 12:00] @alpha → check: Are you alive? Reply to my inbox.' >> inbox/beta.md
 git add inbox/ && git commit -m "test: ping beta" && git push
 
-# Trigger beta to check its inbox
-./scripts/fleet-inbox-check.sh beta
+# Trigger beta to check its inbox (from the machine that has fleet-inbox-check.sh configured)
+~/claude-fleet/fleet-inbox-check.sh beta
 ```
 
 ## Documentation
