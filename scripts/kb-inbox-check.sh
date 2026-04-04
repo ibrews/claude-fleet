@@ -41,7 +41,14 @@ fi
 # Extract pending items (lines starting with "- [ ]")
 PENDING=$(grep -E '^\s*- \[ \]' "$INBOX_PATH" 2>/dev/null || true)
 
-if [ -z "$PENDING" ]; then
+# Check fleet-wide announcements (read-only broadcast)
+FLEET_FILE="$KB_DIR/inbox/fleet.md"
+FLEET_ANNOUNCEMENTS=""
+if [ -f "$FLEET_FILE" ]; then
+    FLEET_ANNOUNCEMENTS=$(sed -n '/^## Active/,/^## Archived/p' "$FLEET_FILE" 2>/dev/null | grep -E '^\- \[' || true)
+fi
+
+if [ -z "$PENDING" ] && [ -z "$FLEET_ANNOUNCEMENTS" ]; then
     exit 0
 fi
 
