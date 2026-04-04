@@ -101,6 +101,8 @@ curl -s -X POST http://GATEWAY_IP:3333/api/fleet/machines/$(hostname)/heartbeat 
 
 ## Task Dispatch
 
+Three dispatch modes:
+
 ### Inbox Mode
 Writes a task to the target machine's inbox markdown file. The machine picks it up on its next Claude session start.
 
@@ -130,6 +132,49 @@ Headless Claude runs as a CLI process via SSH. It has **full filesystem and shel
 - Tasks longer than 5 minutes (SSH timeout)
 - Anything requiring desktop session access
 
+### Smart Dispatch (Auto-Route)
+
+Select "🧠 Auto" in the machine dropdown and the Control Center will:
+
+1. **Classify** the task by matching keywords against routing rules (e.g., "benchmark GPU" → `gpu-compute`)
+2. **Check health** of the primary machine (SSH ping or local detection if running on the same host)
+3. **Fall back** to the next machine in the chain if the primary is offline
+4. **Execute** via instant SSH or local spawn
+
+The classification preview shows in real-time as you type: `→ fort (gpu-compute)`.
+
+#### Routing rules
+
+Rules are ordered from most specific to most general. Task classification stops at the first match:
+
+| Task Type | Keywords | Primary | Fallbacks |
+|-----------|----------|---------|-----------|
+| game-engine | unreal, ue5, blueprint, lighting | GPU machine | Secondary GPU |
+| gpu-compute | gpu, cuda, train, inference, pytorch | GPU machine | Other GPU machines |
+| apple-dev | xcode, ios, swift, testflight | Mac with Xcode | Other Mac |
+| eval | eval, benchmark, score | Always-on gateway | Bulk processor |
+| ops | deploy, docker, restart, service | Always-on gateway | Dev machine |
+| design | design, svg, mockup, figma | GPU (design model) | Bulk processor |
+| refactoring | refactor, review, lint, optimize | Bulk processor | GPU, dev |
+| reasoning | architecture, strategy, tradeoff | GPU (reasoning model) | Bulk processor |
+| bulk-processing | document, analyze, summarize, batch | High-VRAM machine | Gateway |
+| quick-check | status, check, disk, uptime, health | Always-on gateway | Dev, lightweight |
+| coding | code, html, implement, build, create | Best code model | Secondary code |
+
+#### Eval-driven routing
+
+If you run model evaluations across your fleet, the routing rules can be automatically updated from eval data. The `update-routing.js` script reads your eval results and regenerates the `TASK_ROUTING` array based on actual model performance scores:
+
+```bash
+# Preview what routing would look like based on eval data:
+node update-routing.js
+
+# Apply to server.js automatically:
+node update-routing.js --apply
+```
+
+This means your routing improves as you test more models — a model that scores 7.38 on coding tasks will be preferred over one that scores 5.10, regardless of which machine it's on.
+
 ### Model routing
 
 The dispatch UI includes a model selector:
@@ -151,9 +196,14 @@ The dispatch UI includes a model selector:
 | `DELETE` | `/api/fleet/machines/:id/inbox/:idx` | Delete pending item |
 | `POST` | `/api/fleet/machines/:id/inbox/:idx/done` | Mark item done |
 | `GET` | `/api/fleet/inbox` | All inboxes summary |
-| `POST` | `/api/fleet/dispatch` | Dispatch task |
+| `POST` | `/api/fleet/dispatch` | Dispatch task (manual target) |
+| `POST` | `/api/fleet/dispatch/smart` | Smart dispatch (auto-classify + health check + fallback) |
+| `GET` | `/api/fleet/classify` | Classify a task without dispatching |
 | `GET` | `/api/fleet/dispatches` | Recent results + running tasks |
 | `GET` | `/api/fleet/tasks/:id` | Poll for task result |
+| `POST` | `/api/fleet/workflow` | Execute multi-step workflow chain |
+| `GET` | `/api/fleet/workflow/:id` | Poll workflow status |
+| `GET` | `/api/fleet/health` | Ping all machines via SSH |
 | `GET` | `/api/fleet/activity` | Event timeline |
 | `GET` | `/api/fleet/dashboard` | Fleet summary |
 
