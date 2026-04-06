@@ -111,13 +111,25 @@ git checkout --theirs . && git add -A && git rebase --continue
 ```json
 {
   "permissions": {
-    "allow": ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
-    "bypassPermissions": true
-  }
+    "defaultMode": "bypassPermissions",
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(sudo rm -rf *)"
+    ]
+  },
+  "skipDangerousModePermissionPrompt": true
 }
 ```
 
-This skips interactive permission prompts. Only enable this on machines you trust — it allows Claude to run any tool without asking.
+Both fields are required:
+- `defaultMode: "bypassPermissions"` — skips interactive permission prompts
+- `skipDangerousModePermissionPrompt: true` — skips the one-time "are you sure?" confirmation
+
+Only enable this on machines you trust — it allows Claude to run any tool without asking.
+
+**Known behaviors in bypass mode:**
+- Editing `~/.claude/CLAUDE.md` always prompts (built-in safeguard — prevents agents from silently rewriting their own instructions)
+- If you **deny** any single permission prompt during a session, Claude Code switches to prompting for ALL subsequent tool calls. The session cannot recover — start a new one.
 
 ## "Session not found" when clicking Telegram approval buttons
 

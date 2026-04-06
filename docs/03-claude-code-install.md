@@ -85,8 +85,17 @@ For autonomous fleet operation, you'll want Claude to run without permission pro
       "Bash(rm -rf /)",
       "Bash(sudo rm -rf *)"
     ]
-  }
+  },
+  "skipDangerousModePermissionPrompt": true
 }
 ```
 
-Add this to `~/.claude/settings.json` on each machine (the one file that must live in `~/.claude/`). The `deny` list prevents catastrophic commands while allowing everything else.
+Add this to `~/.claude/settings.json` on each machine (the one file that must live in `~/.claude/`). Both fields are required:
+- `defaultMode: "bypassPermissions"` — skips tool permission prompts
+- `skipDangerousModePermissionPrompt: true` — skips the one-time "are you sure?" confirmation
+
+The `deny` list prevents catastrophic commands while allowing everything else.
+
+**Gotchas:**
+- Editing `~/.claude/CLAUDE.md` always prompts regardless of bypass mode (built-in safeguard)
+- Denying any permission prompt in a session causes all subsequent commands to prompt — start a new session to recover

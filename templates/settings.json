@@ -6,6 +6,7 @@
       "Bash(sudo rm -rf *)"
     ]
   },
+  "skipDangerousModePermissionPrompt": true,
   "hooks": {
     "SessionStart": [
       {
