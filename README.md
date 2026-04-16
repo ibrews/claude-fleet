@@ -201,6 +201,14 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 ~/claude-fleet/fleet-inbox-check.sh beta
 ```
 
+## Things to Try
+
+1. **Run `./fleet-status.sh`** — prints a table of all configured machines with their Tailscale IP, OS, and last-seen timestamp; any offline machine shows in red.
+2. **Write a one-line task to a machine's inbox and run `./fleet-inbox-check.sh <machine>`** — Claude Code on that machine picks up the task, runs it headlessly, and writes results back to the knowledge repo within seconds.
+3. **Run `./fleet-trigger.sh "summarize today's git activity across all repos"`** — broadcasts the prompt to every machine in parallel; each writes its results to `inbox/<machine>.md` and you get a Telegram notification when all are done.
+4. **Open the Control Center dashboard (`docs/fleet-commander.html` locally or the GitHub Pages link)** — click a machine name to see its live inbox, completed tasks, and dispatch a new task without touching the terminal.
+5. **Simulate a fleet-wide eval run with `npm run eval -- --suite coding`** (requires fleet-eval configured) — each machine runs the task pack, scores are written to the leaderboard, and routing rules auto-update based on results.
+
 ## Documentation
 
 | Guide | Description |
