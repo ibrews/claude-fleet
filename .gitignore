@@ -3,3 +3,8 @@
 node_modules/
 .DS_Store
 /tmp/
+
+# fleet-bot local config
+telegram/fleet-bot/machines.json
+telegram/fleet-bot/node_modules/
+telegram/fleet-bot/package-lock.json
