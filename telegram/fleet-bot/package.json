@@ -1,0 +1,13 @@
+{
+  "name": "fleet-bot",
+  "version": "1.0.0",
+  "description": "Telegram relay for a Claude Code fleet: turn-guard button actions and reply-to-session routing.",
+  "type": "module",
+  "main": "bot.mjs",
+  "scripts": {
+    "start": "node bot.mjs"
+  },
+  "dependencies": {
+    "grammy": "^1.36.0"
+  }
+}
