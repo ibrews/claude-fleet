@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Telegram channel auto-launch (macOS launchd agent).
+  Replace every REPLACE_ME_* placeholder, then rename this file to match
+  the Label (e.g. com.yourname.telegram-channel.plist).
+  See examples/telegram-channel-autolaunch/README.md.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>REPLACE_ME_LABEL</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>REPLACE_ME_HOME/.claude/scripts/start-telegram-channel-session.sh</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>REPLACE_ME_HOME/.claude/logs/telegram-channel-agent.log</string>
+    <key>StandardErrorPath</key>
+    <string>REPLACE_ME_HOME/.claude/logs/telegram-channel-agent.err</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>REPLACE_ME_HOME</string>
+    </dict>
+</dict>
+</plist>

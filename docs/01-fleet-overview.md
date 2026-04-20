@@ -12,9 +12,13 @@ A Claude Fleet is a group of computers — your laptop, desktops, servers, whate
 
 A shared git repository acts as an asynchronous message bus. Each machine has an "inbox" file where other machines (or you) can leave tasks. Machines check their inbox at session start, process pending items, and push results back.
 
-### 3. The Human Layer (Telegram)
+### 3. The Human Layer (Phone Access)
 
-A Telegram bot sends you notifications when machines finish tasks, hit errors, or need your input. You stay in the loop without watching terminals.
+Three orthogonal ways to stay in the loop without watching terminals:
+
+- **Outbound Telegram notifications** — a bot pings you when any machine finishes, errors, or needs a decision. Fleet-wide; see [06-telegram-bot.md](06-telegram-bot.md).
+- **`/remote-control`** — built-in slash command. Opens any live session inside the Claude mobile app. Per-session, no fleet coordination. See [12-remote-control.md](12-remote-control.md).
+- **Telegram channel plugin** (optional) — a single dedicated session on one fleet machine that receives Telegram messages as input via `plugin:telegram@claude-plugins-official`. Bot tokens allow only one poller, so this runs on exactly one machine fleet-wide.
 
 ## File Layout on Each Machine
 

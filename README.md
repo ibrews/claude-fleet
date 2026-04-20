@@ -1,6 +1,6 @@
 # Claude Fleet
 
-Coordinate a fleet of computers each running [Claude Code](https://docs.anthropic.com/en/docs/claude-code), communicating asynchronously through git, with Telegram notifications for human-in-the-loop control.
+Coordinate a fleet of computers each running [Claude Code](https://docs.anthropic.com/en/docs/claude-code), communicating asynchronously through git, with phone access to every session for human-in-the-loop control.
 
 ```
 ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
@@ -62,6 +62,16 @@ The `~/.claude/` directory is Claude Code's internal config directory. Accessing
 - **Machines communicate through a shared git repo.** Each machine has an inbox file. Write a task to `inbox/beta.md`, push, and beta picks it up on its next session.
 - **You get Telegram notifications.** When any machine finishes a task, you get a message with a status icon: ✅ success, ❌ error, ⚠️ hit turn limit, 🔔 needs your decision.
 - **One command triggers all machines.** Run `fleet-inbox-check.sh` and every machine in your fleet checks its inbox in parallel.
+- **Drive any session from your phone.** Run `/remote-control` in any Claude Code session and open the URL on your phone — it renders natively in the Claude mobile app. Zero fleet config.
+
+## Components
+
+| Component | What it is |
+|-----------|------------|
+| Inbox protocol (git) | Async machine-to-machine task passing via a shared KB repo |
+| Telegram notifications | Outbound "task done / needs you" pings from every machine (fleet-wide) |
+| `/remote-control` (built-in) | Native mobile app access to any live session — per-session, zero config |
+| Telegram channel plugin (optional) | Message-driven remote session, single machine fleet-wide — see [docs/06-telegram-bot.md](docs/06-telegram-bot.md) |
 
 ## What This Is NOT
 
@@ -218,12 +228,13 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 | [Claude Code Install](docs/03-claude-code-install.md) | Per-platform installation |
 | [Knowledge Repo](docs/04-knowledge-repo.md) | Setting up the shared git repo |
 | [Inbox System](docs/05-inbox-system.md) | The messaging protocol |
-| [Telegram Bot](docs/06-telegram-bot.md) | Notifications and remote control |
+| [Telegram Bot](docs/06-telegram-bot.md) | Notifications and message-driven session access |
 | [Hooks](docs/07-hooks.md) | Claude Code hook configuration |
 | [Fleet Trigger](docs/08-fleet-trigger.md) | Triggering all machines at once |
 | [Troubleshooting](docs/09-troubleshooting.md) | Common issues and fixes |
 | [Notifications](docs/10-notifications.md) | Mid-session inter-machine notifications |
 | [Control Center](docs/11-control-center.md) | Web dashboard for fleet management and instant dispatch |
+| [Remote Control](docs/12-remote-control.md) | `/remote-control` — drive a session from the Claude mobile app |
 
 ## Try It — Fleet Commander
 
@@ -254,6 +265,7 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 
 - [Two-Machine Fleet](examples/two-machine-fleet/) — Minimal laptop + desktop setup
 - [Five-Machine Fleet](examples/five-machine-fleet/) — Multi-role fleet with specialization
+- [Telegram Channel Autolaunch](examples/telegram-channel-autolaunch/) — launchd + tmux pattern for the Telegram channel plugin on one fleet machine
 
 ## Fleet Task Dispatch (Headless Subagents)
 
