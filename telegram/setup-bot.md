@@ -1,5 +1,7 @@
 # Setting Up Your Telegram Bot
 
+> **Heads up:** This guide covers creating a bot for **outbound fleet notifications** (and, optionally, the ccgram-style permission-forwarding channel). If what you actually want is "drive a live Claude Code session from my phone," the built-in `/remote-control` slash command is usually the better fit — no bot required. See [../docs/12-remote-control.md](../docs/12-remote-control.md) and the chooser table in [../docs/06-telegram-bot.md](../docs/06-telegram-bot.md).
+
 ## 1. Create the Bot
 
 1. Open Telegram and search for **@BotFather**
@@ -35,11 +37,14 @@ TELEGRAM_CHAT_ID=your_chat_id_here
 
 The `notify-human.js` script and `fleet-inbox-check.sh` will read from this file automatically.
 
-## 5. Optional: Full Remote Control with ccgram
+## 5. Optional: Permission Forwarding via ccgram
 
-For advanced features like:
+If you want Telegram to act as an approval channel for tool calls (beyond plain notifications), ccgram adds:
+
 - **Permission forwarding**: Get Allow/Deny buttons in Telegram when Claude wants to run a command
 - **Sleep mode**: `/sleep` to auto-approve all tool calls, `/wake` to re-enable approval
 - **Interactive questions**: Claude's questions forwarded to Telegram with clickable answers
 
 See [@anthropic-ai/ccgram](https://www.npmjs.com/package/@anthropic-ai/ccgram) (or build your own — the Telegram Bot API is straightforward).
+
+Note: for "I just want to read and type into my session from my phone," you probably don't need ccgram — run `/remote-control` inside the session and open the URL in the Claude mobile app. See [../docs/12-remote-control.md](../docs/12-remote-control.md).

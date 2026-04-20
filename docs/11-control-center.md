@@ -4,6 +4,8 @@
 
 A centralized web dashboard for fleet management — machine status, inbox overview, task dispatch, and development tracking.
 
+> **Scope note:** The Control Center is a desktop/web visibility + dispatch layer, not a phone-access tool. If you want to drive a live Claude Code session from your phone, use the built-in `/remote-control` command ([12-remote-control.md](./12-remote-control.md)). For outbound Telegram pings, see [06-telegram-bot.md](./06-telegram-bot.md).
+
 ## Overview
 
 While the inbox system (docs 05) handles async messaging via git, the Control Center adds a **real-time web dashboard** for fleet-wide visibility and instant task dispatch.

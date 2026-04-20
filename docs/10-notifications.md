@@ -2,6 +2,8 @@
 
 The inbox system delivers messages on session start. But what if Machine A is mid-session and Machine B finishes a task it requested? Notifications solve this — they inject messages into an **active** Claude session within ~60 seconds.
 
+> **Scope note:** This doc is about **machine-to-machine** mid-session messages inside the fleet. For reaching a live session **from your phone**, use `/remote-control` ([12-remote-control.md](./12-remote-control.md)). For outbound "task done / needs you" pings to Telegram, see [06-telegram-bot.md](./06-telegram-bot.md).
+
 ## How It Works
 
 ```
