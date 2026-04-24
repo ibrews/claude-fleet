@@ -1,0 +1,7 @@
+{
+  "_comment": "Map of machine name → SSH endpoint. 'machine name' is whatever `hostname -s | tr '[:upper:]' '[:lower:]'` returns on that host; turn-guard embeds it in the #machine= tag. Multiple keys can point at the same host (useful when hostname casing varies).",
+  "gateway":   { "host": "localhost",       "user": "you" },
+  "laptop":    { "host": "100.64.0.10",     "user": "you" },
+  "desktop":   { "host": "100.64.0.11",     "user": "you" },
+  "workstation": { "host": "100.64.0.12",   "user": "you" }
+}
