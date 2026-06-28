@@ -144,3 +144,39 @@ When multiple machines append to the same file, use machine-specific headings (e
 6. **Stay out of `~/.claude/`.** Access this repo via `~/knowledge/` only.
 7. **Daily logs are expected.** At the end of any meaningful session, write a daily log.
 8. **Keep inbox items actionable.** One task per line, specific verbs, clear details.
+
+## Model Routing
+
+**Default: cheapest model that does the job correctly.**
+
+| Tier | Provider | When |
+|------|----------|------|
+| **Local** | Ollama (`localhost:11434`) | Free tasks — summarization, formatting, simple search |
+| **Mid-tier** | Gemini 2.5 Flash (`$GEMINI_API_KEY`) | Research, drafts, large-file analysis; NVIDIA NIM (`$NVIDIA_API_KEY`) for code gen |
+| **Claude** | Anthropic (`$ANTHROPIC_API_KEY`) | Orchestration, judgment, novel architecture, final review |
+
+Within Claude itself: **Haiku 4.5** for mechanical edits → **Sonnet 4.6** for implementation (default, ~80% of tasks) → **Opus 4.8** for novel architecture or subtle root causes.
+
+**Suggest downgrades in-session.** When the current Claude tier is overqualified, say so in one line and continue: *"This is a Sonnet task — consider `/model sonnet` to save Opus budget."* The user switches with `/model`; Claude cannot self-downgrade.
+
+Confidence threshold for delegation: 90%+ = auto-dispatch; 70–89% = ask first; below 70% = Claude handles.
+
+See `docs/13-model-routing.md` for full examples and curl commands.
+
+## Concurrent Session Coordination
+
+When multiple machines or sessions might work in parallel:
+
+- **Session board:** Machines announce themselves via `session-board.sh heartbeat <slug> -S <status> -w "<doing>"` so others know what's running. Run `session-board.sh board` to see who's active. Entries stale after 15 minutes of no heartbeat.
+- **Inbox claim:** Before starting an inbox item, claim it: `inbox-claim.sh triggers/<slug>.md`. This stamps `in_progress` + your PID so sibling sessions skip it. Release with `inbox-claim.sh triggers/<slug>.md done`.
+- **Git isolation:** Two sessions on the same repo → each gets its own branch via `git worktree add ../<slug> -b <branch>`. Never two sessions committing to one branch.
+
+See `docs/14-concurrent-sessions.md` for full details.
+
+## Behavior Rules
+
+- **American spelling.** Always: `color` not `colour`, `center` not `centre`, `initialize` not `initialise`, `behavior` not `behaviour`. In code, comments, docs, UI strings, and commits.
+- **Conventional commits.** Format: `type(scope): description`. Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`. One logical change per commit. Example: `feat(inbox): add claim protocol`.
+- **Full git lifecycle.** Commit → push → merge finished branches back to `main` → delete the merged branch. Don't park completed work on side branches. Commit implies push.
+- **README is the source of truth.** After any feature change, update the README in the same commit. If code and README disagree, the README is wrong — fix it.
+- **Comments explain WHY.** Don't comment what the code does — well-named identifiers do that. Comment the non-obvious: hidden constraints, subtle invariants, workarounds for specific bugs.

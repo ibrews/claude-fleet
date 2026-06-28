@@ -63,6 +63,8 @@ The `~/.claude/` directory is Claude Code's internal config directory. Accessing
 - **You get Telegram notifications.** When any machine finishes a task, you get a message with a status icon: ✅ success, ❌ error, ⚠️ hit turn limit, 🔔 needs your decision.
 - **One command triggers all machines.** Run `fleet-inbox-check.sh` and every machine in your fleet checks its inbox in parallel.
 - **Drive any session from your phone.** Run `/remote-control` in any Claude Code session and open the URL on your phone — it renders natively in the Claude mobile app. Zero fleet config.
+- **Route tasks to the cheapest model.** A tiered routing system sends mechanical tasks to local Ollama models, research/drafting to Gemini 2.5 Flash or NVIDIA NIM, and reserves Claude for judgment and orchestration.
+- **Coordinate concurrent sessions.** A lightweight session board and inbox claim protocol prevent multiple machines from stepping on each other.
 
 ## Components
 
@@ -162,6 +164,8 @@ cp ~/claude-fleet-repo/scripts/kb-inbox-check.sh ~/claude-fleet/
 cp ~/claude-fleet-repo/scripts/kb-session-end.sh ~/claude-fleet/
 cp ~/claude-fleet-repo/scripts/notify-human.js ~/claude-fleet/
 cp ~/claude-fleet-repo/scripts/fleet-inbox-check.sh ~/claude-fleet/
+cp ~/claude-fleet-repo/scripts/session-board.sh ~/claude-fleet/
+cp ~/claude-fleet-repo/scripts/inbox-claim.sh ~/claude-fleet/
 chmod +x ~/claude-fleet/*.sh
 ```
 
@@ -213,11 +217,11 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 
 ## Things to Try
 
-1. **Run `./fleet-status.sh`** — prints a table of all configured machines with their Tailscale IP, OS, and last-seen timestamp; any offline machine shows in red.
-2. **Write a one-line task to a machine's inbox and run `./fleet-inbox-check.sh <machine>`** — Claude Code on that machine picks up the task, runs it headlessly, and writes results back to the knowledge repo within seconds.
-3. **Run `./fleet-trigger.sh "summarize today's git activity across all repos"`** — broadcasts the prompt to every machine in parallel; each writes its results to `inbox/<machine>.md` and you get a Telegram notification when all are done.
-4. **Open the Control Center dashboard (`docs/fleet-commander.html` locally or the GitHub Pages link)** — click a machine name to see its live inbox, completed tasks, and dispatch a new task without touching the terminal.
-5. **Simulate a fleet-wide eval run with `npm run eval -- --suite coding`** (requires fleet-eval configured) — each machine runs the task pack, scores are written to the leaderboard, and routing rules auto-update based on results.
+1. **Write a one-line task to a machine's inbox and trigger it** — edit `inbox/beta.md`, add `- [ ] [2024-01-01 12:00] @alpha → check: Are you alive?`, then run `~/claude-fleet/fleet-inbox-check.sh beta`. Claude Code on that machine picks it up, runs it headlessly, and writes results back within seconds.
+2. **Send a task with the fleet dispatch script** — `node scripts/fleet-task.js beta "Summarize today's git log in ~/knowledge" --tools Read,Bash` — results stream back to your terminal in real time.
+3. **Run `session-board.sh board`** — prints a table of all active sessions across your fleet, their status, what each one is doing, and when they last heartbeated. Any session stale for 15+ minutes is flagged.
+4. **Open the Fleet Commander game** (`docs/fleet-commander.html` locally or the [GitHub Pages link](https://ibrews.github.io/claude-fleet/docs/fleet-commander.html)) — an interactive browser game that teaches the full architecture: name your machines, install the stack, and dispatch tasks while watching data pulses travel through the network.
+5. **Route a heavy task through Gemini** — set `GEMINI_API_KEY` in your shell, then ask Claude to summarize a large file using `GEMINI_API_KEY=$GEMINI_API_KEY gemini -p "summarize this: $(cat big-file.txt)" -y`. This offloads token cost from Claude to Gemini's 1M-context window.
 
 ## Documentation
 
@@ -227,7 +231,7 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 | [Tailscale Setup](docs/02-tailscale-setup.md) | Connecting your machines |
 | [Claude Code Install](docs/03-claude-code-install.md) | Per-platform installation |
 | [Knowledge Repo](docs/04-knowledge-repo.md) | Setting up the shared git repo |
-| [Inbox System](docs/05-inbox-system.md) | The messaging protocol |
+| [Inbox System](docs/05-inbox-system.md) | The messaging protocol + trigger files + claim protocol |
 | [Telegram Bot](docs/06-telegram-bot.md) | Notifications and message-driven session access |
 | [Hooks](docs/07-hooks.md) | Claude Code hook configuration |
 | [Fleet Trigger](docs/08-fleet-trigger.md) | Triggering all machines at once |
@@ -235,6 +239,8 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 | [Notifications](docs/10-notifications.md) | Mid-session inter-machine notifications |
 | [Control Center](docs/11-control-center.md) | Web dashboard for fleet management and instant dispatch |
 | [Remote Control](docs/12-remote-control.md) | `/remote-control` — drive a session from the Claude mobile app |
+| [Model Routing](docs/13-model-routing.md) | Local → Gemini/NIM → Claude tiering with confidence thresholds |
+| [Concurrent Sessions](docs/14-concurrent-sessions.md) | Session board, inbox claim protocol, git worktree isolation |
 
 ## Try It — Fleet Commander
 
@@ -319,4 +325,4 @@ The fleet trigger script (`fleet-inbox-check.sh`) SSHes into every machine in pa
 
 ## License
 
-MIT
+MIT — built by [Alex Coulombe Presents](https://www.alexcoulombepresents.com)

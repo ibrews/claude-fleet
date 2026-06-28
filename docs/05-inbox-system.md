@@ -92,3 +92,49 @@ This creates a two-way conversation through git.
 - **One task per line.** Don't bundle multiple requests.
 - **Clean up weekly.** Delete done items older than 7 days. Git history preserves everything.
 - **Don't modify other machines' done items.** Only add to their Pending section.
+
+## Trigger Files (for Long-Running Tasks)
+
+For tasks that take more than a few minutes — or that multiple machines might see — create a **trigger file** alongside the inbox item. This gives the task a persistent identity and prevents duplicate processing.
+
+**Create a trigger file at:** `triggers/<slug>.md`
+
+```yaml
+---
+title: "Build and upload the weekly report"
+status: pending
+claimed_by: ""
+claimed_at: ""
+completed_at: ""
+---
+
+# What needs to happen
+- Run scripts/generate-report.py
+- Upload to the shared drive
+- Write results back to inbox/alpha.md
+```
+
+## Inbox Claim Protocol
+
+When multiple sessions or machines are active, they can both see the same pending inbox item and both start working on it. The **claim protocol** prevents this.
+
+**Before starting an inbox item:**
+```bash
+~/claude-fleet/inbox-claim.sh triggers/my-task.md
+```
+
+This stamps `status: in_progress`, your machine name, and your session PID onto the trigger file, then commits and pushes. Other machines' SessionStart hooks see the claim and skip the item.
+
+**When the task is complete:**
+```bash
+~/claude-fleet/inbox-claim.sh triggers/my-task.md done
+```
+
+This stamps `status: completed` + `completed_at`, commits, and pushes. Also strike the inbox line:
+```markdown
+- ~~[2024-01-15 14:00] @alpha → run: weekly report~~ ✅ 2024-01-15
+```
+
+**"Done" = both committed in the same push:** the trigger file updated + the inbox line struck. If only one is done, it's not done.
+
+**Liveness checking:** if your session crashes before releasing the claim, other sessions check whether the PID in `claimed_by` is still alive. If the process is gone, the item surfaces as "claim abandoned" and can be safely reclaimed.
