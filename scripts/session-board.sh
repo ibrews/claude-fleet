@@ -86,7 +86,8 @@ Fields:
   -S status     active | building | blocked | verifying | done
   -w doing      one-line "what I'm doing right now"
 
-Env: FLEET_MACHINE (default hostname), KB_ROOT (default ~/knowledge), SESSION_STALE_MIN (default 15).
+Env: FLEET_MACHINE (default hostname), KB_ROOT (default ~/knowledge), SESSION_STALE_MIN (default 15),
+     SESSION_PRUNE_HOURS (default 4 — dead-process entries older than this are auto-removed on board).
 EOF
 }
 
@@ -169,7 +170,21 @@ EOF
   board)
     shopt -s nullglob
     files=("$DIR"/*.md)
-    now="$(now_epoch)"; stale_s=$(( STALE_MIN * 60 )); n=${#files[@]}
+    now="$(now_epoch)"; stale_s=$(( STALE_MIN * 60 ))
+    # Auto-prune: remove entries where the process is confirmed dead AND the
+    # heartbeat is older than SESSION_PRUNE_HOURS (default 4h). This keeps the
+    # board — and the SessionStart hook output — clean without losing entries
+    # for sessions that are merely busy and not heartbeating (e.g. a long build).
+    prune_s=$(( ${SESSION_PRUNE_HOURS:-4} * 3600 ))
+    for f in "${files[@]}"; do
+      hb_e="$(getfield "$f" heartbeat_epoch)"; pidf="$(getfield "$f" pid)"
+      age=$(( now - ${hb_e:-0} ))
+      if [ "$age" -gt "$prune_s" ] && [ -n "$pidf" ] && ! ps -p "$pidf" >/dev/null 2>&1; then
+        rm -f "$f"
+      fi
+    done
+    files=("$DIR"/*.md)   # re-read after pruning
+    n=${#files[@]}
     echo "ACTIVE SESSIONS — $n entr$([ "$n" = 1 ] && echo y || echo ies)  (stale > ${STALE_MIN}m)"
     echo
     [ "$n" = 0 ] && { echo "  (none checked in)"; exit 0; }
