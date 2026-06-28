@@ -13,6 +13,16 @@
         "hooks": [
           {
             "type": "command",
+            "command": "$HOME/claude-fleet/session-board-show.sh",
+            "timeout": 15,
+            "statusMessage": "Checking session board..."
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "$HOME/claude-fleet/kb-inbox-check.sh",
             "timeout": 30,
             "statusMessage": "Checking inbox..."
@@ -38,6 +48,18 @@
             "command": "node $HOME/claude-fleet/notify-human.js",
             "timeout": 10,
             "statusMessage": "Sending notification..."
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/claude-fleet/session-board-checkout.sh",
+            "timeout": 10,
+            "statusMessage": "Checking out of session board..."
           }
         ]
       }

@@ -1,107 +1,200 @@
-#!/bin/bash
-# session-board.sh — lightweight concurrent session coordination
+#!/usr/bin/env bash
+# session-board.sh — a presence board for concurrent Claude Code sessions.
 #
-# Tracks active Claude Code sessions via the shared KB so multiple machines
-# (or multiple terminal windows on one machine) don't step on each other.
+# WHY this exists: when many autonomous sessions run across the fleet, they
+# CANNOT talk to each other at runtime — send_message and
+# search_session_transcripts are harness-blocked in unsupervised/auto/loop mode
+# regardless of user approval (see
+# https://github.com/ibrews/claude-fleet/blob/main/docs/14-concurrent-sessions.md).
+# The only reliable cross-session channel is committed files. This board answers
+# the live question "who is doing what right now, and which singletons are they
+# holding?" (e.g. "who is compiling Unreal and why?") with zero live messaging.
 #
-# Usage:
-#   session-board.sh board                              # show all active sessions
-#   session-board.sh heartbeat <slug> [-S status] [-w "what you're doing"] [-e "eta"]
-#   session-board.sh checkout <slug>                    # mark session done
+# WHY a folder of one-file-per-session (not one shared ACTIVE-SESSIONS.md): each
+# session writes ONLY its own file, so two sessions never edit the same file and
+# git never hits a merge/index race. Reading the board is just `ls` + cat.
 #
-# Board file lives at: ~/knowledge/sessions/board.md
-# Each session is one line; stale = no heartbeat for 15+ minutes.
+# This is a VISIBILITY layer for the singletons you can't duplicate (one build
+# engine, one device, one sim, one shared config toggle). It does NOT prevent
+# collisions on source — that's worktree isolation, the real fix. See
+# sessions/README.md.
 
-KNOWLEDGE_DIR="${KNOWLEDGE_DIR:-$HOME/knowledge}"
-BOARD_FILE="$KNOWLEDGE_DIR/sessions/board.md"
-STALE_MINUTES=15
-MACHINE_NAME="${FLEET_MACHINE_NAME:-$(hostname -s)}"
+set -euo pipefail
 
-mkdir -p "$(dirname "$BOARD_FILE")"
-[ -f "$BOARD_FILE" ] || printf "# Session Board\n\n" > "$BOARD_FILE"
+KB="${KB_ROOT:-$HOME/knowledge}"
+DIR="$KB/sessions/active"
+STALE_MIN="${SESSION_STALE_MIN:-15}"
+MACHINE="${FLEET_MACHINE:-$(hostname -s 2>/dev/null || echo unknown)}"
 
-now_epoch() { date +%s; }
-now_iso()   { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
+mkdir -p "$DIR"
 
-# Parse a field from a board line (tab-separated: slug|machine|status|doing|eta|last_hb_epoch)
-# Format per entry: slug TAB machine TAB status TAB doing TAB eta TAB epoch
-read_board() {
-  grep -v '^#' "$BOARD_FILE" | grep -v '^$'
+now_epoch() { date -u +%s; }
+now_iso()   { date -u +%Y-%m-%dT%H:%M:%SZ; }
+
+# Read a single-line "key: value" frontmatter field from a file (empty if absent).
+getfield() { sed -n "s/^$2: //p" "$1" 2>/dev/null | head -1 || true; }
+
+slug_file() { echo "$DIR/${MACHINE}-${1}.md"; }
+
+# The DURABLE Claude runtime PID for this session. WHY: $PPID is the ephemeral
+# shell-snapshot subshell that runs this script — it dies within seconds, so the
+# old `pid: $PPID` made the board's pid field useless for liveness (every recorded
+# pid was already dead — see the 2026-06-23 load-collapse incident). Walk up the
+# process tree to the real `claude` agent runtime (desktop: `MacOS/claude
+# --output-format …`; headless: `claude -p` / `--print`). Falls back to $PPID.
+# See https://github.com/ibrews/claude-fleet/blob/main/docs/14-concurrent-sessions.md
+durable_pid() {
+  local p="$$" cmd
+  while [ "${p:-0}" -gt 1 ]; do
+    cmd="$(ps -p "$p" -o command= 2>/dev/null || true)"
+    case "$cmd" in
+      *claude*--output-format*|*claude\ -p*|*claude*--print*) echo "$p"; return;;
+    esac
+    p="$(ps -p "$p" -o ppid= 2>/dev/null | tr -d ' ')"; [ -n "$p" ] || break
+  done
+  echo "${SESSION_BOARD_PID:-$PPID}"
 }
 
-write_board() {
-  local tmp
-  tmp=$(mktemp)
-  printf "# Session Board\n\n" > "$tmp"
-  cat "$KNOWLEDGE_DIR/sessions/.board_entries.tsv" 2>/dev/null >> "$tmp"
-  mv "$tmp" "$BOARD_FILE"
+# Harness sessionId for a runtime pid (from ~/.claude/sessions/<pid>.json), if present.
+# This is the liveness key that actually survives — cross-check with list_sessions.
+session_id_for() {
+  local j="$HOME/.claude/sessions/${1}.json"
+  [ -f "$j" ] || { echo ""; return; }
+  python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('sessionId',''))" "$j" 2>/dev/null || true
 }
 
-ENTRIES_FILE="$KNOWLEDGE_DIR/sessions/.board_entries.tsv"
-touch "$ENTRIES_FILE"
+usage() {
+  cat <<'EOF'
+session-board.sh — presence board for concurrent sessions
 
-CMD="$1"
-shift
+  checkin   <slug> [-s software] [-r repo] [-b branch] [-c claim] [-f files] [-e eta] [-S status] [-w doing]
+  heartbeat <slug> [-S status] [-e eta] [-w doing]     # bump heartbeat — call at each checkpoint / periodically
+  claim     <slug> "<resource...>"                     # set the singletons you hold (build engine, device, sim)
+  checkout  <slug>                                      # remove your entry when done
+  board                                                # show all active sessions + staleness
 
-case "$CMD" in
-  board)
-    echo ""
-    printf "%-35s %-12s %-12s %-30s %-10s %s\n" "SESSION" "MACHINE" "STATUS" "DOING" "ETA" "LAST HEARTBEAT"
-    printf '%0.s-' {1..110}; echo ""
-    NOW=$(now_epoch)
-    while IFS=$'\t' read -r slug machine status doing eta hb_epoch; do
-      age=$(( (NOW - hb_epoch) / 60 ))
-      hb_str="${age}m ago"
-      stale_flag=""
-      if [ "$age" -gt "$STALE_MINUTES" ]; then
-        stale_flag=" ⚠ STALE"
-      fi
-      printf "%-35s %-12s %-12s %-30s %-10s %s\n" \
-        "$slug" "$machine" "$status" "${doing:0:28}" "${eta:--}" "${hb_str}${stale_flag}"
-    done < "$ENTRIES_FILE"
-    echo ""
+slug = a short stable handle THIS session picks, e.g. 'ue-build' or 'accvr-deploy'.
+Pass the SAME slug to heartbeat/claim/checkout.  File: sessions/active/<machine>-<slug>.md
+
+Fields:
+  -s software   what you're running        (e.g. "Unreal 5.6 / UnrealEngineVisionOS")
+  -r repo       repo path                   (e.g. ~/git/UnrealRealityKitBridge)
+  -b branch     git branch / worktree
+  -c claim      SINGLETONS you hold — the load-bearing field (e.g. "ue-build-engine, AVP-device")
+  -f files      key files/folders you're touching
+  -e eta        when you expect to release  (e.g. "~00:40, build running")
+  -S status     active | building | blocked | verifying | done
+  -w doing      one-line "what I'm doing right now"
+
+Env: FLEET_MACHINE (default hostname), KB_ROOT (default ~/knowledge), SESSION_STALE_MIN (default 15).
+EOF
+}
+
+cmd="${1:-board}"; shift || true
+
+case "$cmd" in
+  checkin)
+    slug="${1:?slug required}"; shift
+    software="" ; repo="" ; branch="" ; claim="" ; files="" ; eta="" ; status="active" ; doing=""
+    while getopts "s:r:b:c:f:e:S:w:" o; do case "$o" in
+      s) software="$OPTARG";; r) repo="$OPTARG";; b) branch="$OPTARG";; c) claim="$OPTARG";;
+      f) files="$OPTARG";; e) eta="$OPTARG";; S) status="$OPTARG";; w) doing="$OPTARG";;
+    esac; done
+    f="$(slug_file "$slug")"; ts="$(now_iso)"; ep="$(now_epoch)"
+    rt_pid="$(durable_pid)"; sess_id="$(session_id_for "$rt_pid")"
+    cat > "$f" <<EOF
+---
+machine: $MACHINE
+slug: $slug
+pid: $rt_pid
+session_id: $sess_id
+software: $software
+repo: $repo
+branch: $branch
+claim: $claim
+files: $files
+status: $status
+eta: $eta
+doing: $doing
+started: $ts
+started_epoch: $ep
+heartbeat: $ts
+heartbeat_epoch: $ep
+---
+
+## Notes to sibling sessions  (FACTS only — mark anything unverified as HYPOTHESIS)
+
+- (e.g. FACT: KickoffEngineHeadless() restored at commit c157b0e)
+- (e.g. HYPOTHESIS, unverified: plain Xcode.app links fine — verify before trusting)
+EOF
+    echo "checked in → $f"
     ;;
 
   heartbeat)
-    SLUG="$1"; shift
-    STATUS="active"
-    DOING=""
-    ETA="-"
-    while [ $# -gt 0 ]; do
-      case "$1" in
-        -S) STATUS="$2"; shift 2 ;;
-        -w) DOING="$2"; shift 2 ;;
-        -e) ETA="$2"; shift 2 ;;
-        *)  shift ;;
-      esac
-    done
-    # Remove old entry for this slug, add updated one
-    grep -v "^${SLUG}	" "$ENTRIES_FILE" > "$ENTRIES_FILE.tmp" 2>/dev/null || true
-    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-      "$SLUG" "$MACHINE_NAME" "$STATUS" "$DOING" "$ETA" "$(now_epoch)" \
-      >> "$ENTRIES_FILE.tmp"
-    mv "$ENTRIES_FILE.tmp" "$ENTRIES_FILE"
-    echo "Heartbeat: $SLUG [$STATUS] — $DOING"
-    # Commit to KB so other machines can see it
-    cd "$KNOWLEDGE_DIR" && \
-      git add sessions/ --quiet && \
-      git commit -m "chore(board): heartbeat $SLUG" --quiet && \
-      git push --quiet &
+    slug="${1:?slug required}"; shift
+    f="$(slug_file "$slug")"
+    [ -f "$f" ] || { echo "no entry for '$slug' on $MACHINE — run checkin first" >&2; exit 1; }
+    status="$(getfield "$f" status)"; eta="$(getfield "$f" eta)"; doing="$(getfield "$f" doing)"
+    while getopts "S:e:w:" o; do case "$o" in
+      S) status="$OPTARG";; e) eta="$OPTARG";; w) doing="$OPTARG";;
+    esac; done
+    ts="$(now_iso)"; ep="$(now_epoch)"
+    # Single-pass rewrite of the volatile fields (portable: no in-place sed -i flag differences).
+    awk -v ts="$ts" -v ep="$ep" -v st="$status" -v eta="$eta" -v doing="$doing" '
+      /^heartbeat: /        {print "heartbeat: " ts; next}
+      /^heartbeat_epoch: /  {print "heartbeat_epoch: " ep; next}
+      /^status: /           {print "status: " st; next}
+      /^eta: /              {print "eta: " eta; next}
+      /^doing: /            {print "doing: " doing; next}
+      {print}
+    ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+    echo "heartbeat → $slug ($status)"
+    ;;
+
+  claim)
+    slug="${1:?slug required}"; shift
+    f="$(slug_file "$slug")"
+    [ -f "$f" ] || { echo "no entry for '$slug' on $MACHINE — run checkin first" >&2; exit 1; }
+    res="$*"
+    awk -v c="$res" '/^claim: /{print "claim: " c; next} {print}' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+    echo "claim($slug) = $res"
     ;;
 
   checkout)
-    SLUG="${1:-$MACHINE_NAME}"
-    grep -v "^${SLUG}	" "$ENTRIES_FILE" > "$ENTRIES_FILE.tmp" 2>/dev/null || true
-    mv "$ENTRIES_FILE.tmp" "$ENTRIES_FILE"
-    echo "Checked out: $SLUG"
-    cd "$KNOWLEDGE_DIR" && \
-      git add sessions/ --quiet && \
-      git commit -m "chore(board): checkout $SLUG" --quiet && \
-      git push --quiet
+    slug="${1:?slug required}"; shift || true
+    f="$(slug_file "$slug")"
+    rm -f "$f" && echo "checked out → ${MACHINE}-${slug}"
     ;;
 
-  *)
-    echo "Usage: session-board.sh board | heartbeat <slug> [-S status] [-w 'doing'] [-e 'eta'] | checkout [slug]"
-    exit 1
+  board)
+    shopt -s nullglob
+    files=("$DIR"/*.md)
+    now="$(now_epoch)"; stale_s=$(( STALE_MIN * 60 )); n=${#files[@]}
+    echo "ACTIVE SESSIONS — $n entr$([ "$n" = 1 ] && echo y || echo ies)  (stale > ${STALE_MIN}m)"
+    echo
+    [ "$n" = 0 ] && { echo "  (none checked in)"; exit 0; }
+    for f in "${files[@]}"; do
+      m="$(getfield "$f" machine)"; sl="$(getfield "$f" slug)"; sw="$(getfield "$f" software)"
+      rp="$(getfield "$f" repo)"; br="$(getfield "$f" branch)"; cl="$(getfield "$f" claim)"
+      st="$(getfield "$f" status)"; eta="$(getfield "$f" eta)"; doing="$(getfield "$f" doing)"
+      hb="$(getfield "$f" heartbeat_epoch)"; age=$(( now - ${hb:-0} )); mins=$(( age / 60 ))
+      pidf="$(getfield "$f" pid)"
+      mark="●"; tail=""
+      if [ "${hb:-0}" -gt 0 ] && [ "$age" -gt "$stale_s" ]; then mark="⚠"; tail="  STALE"; fi
+      if [ -n "$pidf" ] && ! ps -p "$pidf" >/dev/null 2>&1; then mark="⚠"; tail="$tail  ✗proc-gone"; fi
+      printf "%s %-22s %-10s claim: %-28s eta: %-14s hb: %sm ago%s\n" \
+        "$mark" "$m/$sl" "${st:--}" "${cl:--}" "${eta:--}" "$mins" "$tail"
+      printf "    %s · %s%s\n" "${sw:-?}" "${rp:-?}" "${br:+ @ $br}"
+      [ -n "$doing" ] && printf "    doing: %s\n" "$doing"
+      if [ "$mark" = "⚠" ]; then
+        printf "    ↳ stale — cross-check liveness before assuming its claim is free:  list_sessions  |  ps aux | grep claude\n"
+      fi
+      echo
+    done
+    echo "Reminder: STALE = quiet >${STALE_MIN}m (crashed, or just busy). A held claim (build engine, device)"
+    echo "is only safe to take over after list_sessions/ps confirm the owner is actually gone."
     ;;
+
+  -h|--help|help) usage ;;
+  *) echo "unknown command: $cmd" >&2; usage; exit 1 ;;
 esac

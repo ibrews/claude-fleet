@@ -166,6 +166,8 @@ cp ~/claude-fleet-repo/scripts/notify-human.js ~/claude-fleet/
 cp ~/claude-fleet-repo/scripts/fleet-inbox-check.sh ~/claude-fleet/
 cp ~/claude-fleet-repo/scripts/session-board.sh ~/claude-fleet/
 cp ~/claude-fleet-repo/scripts/inbox-claim.sh ~/claude-fleet/
+cp ~/claude-fleet-repo/scripts/session-board-show.sh ~/claude-fleet/
+cp ~/claude-fleet-repo/scripts/session-board-checkout.sh ~/claude-fleet/
 chmod +x ~/claude-fleet/*.sh
 ```
 

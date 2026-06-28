@@ -1,90 +1,75 @@
-#!/bin/bash
-# inbox-claim.sh — claim or release an inbox trigger file
+#!/usr/bin/env bash
+# inbox-claim.sh — claim (or release/complete) an inbox trigger so sibling sessions stop re-flagging it.
+#
+# WHY: the SessionStart inbox hook (kb-inbox-check.sh) flags actionable triggers to EVERY new
+# session. Without a claim, multiple sessions pile onto the same item (e.g. the CloudXR item was
+# re-flagged to session after session while another was already on it). Claiming stamps the trigger
+# `status: in_progress` + your DURABLE runtime pid + a timestamp; the hook then suppresses it for
+# siblings — but LIVENESS-checked: if your session dies, the item auto-re-surfaces (never silently
+# lost). Same lesson as the session-board durable-PID fix.
+# See https://github.com/ibrews/claude-fleet/blob/main/docs/14-concurrent-sessions.md
 #
 # Usage:
-#   inbox-claim.sh triggers/my-task.md          # claim (mark in_progress)
-#   inbox-claim.sh triggers/my-task.md done     # release (mark completed)
+#   inbox-claim.sh <trigger.md>           # claim   → status: in_progress (+claimed_by/pid/at)
+#   inbox-claim.sh <trigger.md> done      # release → status: completed (+completed_at)
+#   inbox-claim.sh <trigger.md> release   # hand back → status: pending
 #
-# Requires: the KB to be at ~/knowledge (or adjust KNOWLEDGE_DIR below).
-# The script edits YAML frontmatter fields using Python (no yq required).
+# Then commit: cd ~/knowledge && git add triggers/ && git commit -m '...' && git push
 
-KNOWLEDGE_DIR="${KNOWLEDGE_DIR:-$HOME/knowledge}"
-TRIGGER_FILE="$1"
-ACTION="${2:-claim}"
+set -euo pipefail
+KB="${KB_ROOT:-$HOME/knowledge}"
+arg="${1:?usage: inbox-claim.sh <trigger.md> [done|release]}"
+verb="${2:-claim}"
+f="$KB/triggers/$(basename "$arg")"
+[ -f "$f" ] || { echo "no such trigger: $f" >&2; exit 1; }
+MACHINE="${FLEET_MACHINE:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
+now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-if [ -z "$TRIGGER_FILE" ]; then
-  echo "Usage: inbox-claim.sh <trigger-file> [done]" >&2
-  exit 1
-fi
+# Durable runtime pid (same walk as session-board.sh): up the process tree to the claude agent
+# runtime, NOT $PPID (the ephemeral subshell that would be dead by the time a sibling checks).
+durable_pid() {
+  local p="$$" cmd
+  while [ "${p:-0}" -gt 1 ]; do
+    cmd="$(ps -p "$p" -o command= 2>/dev/null || true)"
+    case "$cmd" in *claude*--output-format*|*claude\ -p*|*claude*--print*) echo "$p"; return;; esac
+    p="$(ps -p "$p" -o ppid= 2>/dev/null | tr -d ' ')"; [ -n "$p" ] || break
+  done
+  echo "$PPID"
+}
 
-# Resolve path — accept absolute or relative-to-KB
-if [ ! -f "$TRIGGER_FILE" ]; then
-  TRIGGER_FILE="$KNOWLEDGE_DIR/$TRIGGER_FILE"
-fi
+case "$verb" in
+  claim)                    newstatus="in_progress" ;;
+  done|complete|completed)  newstatus="completed" ;;
+  release)                  newstatus="pending" ;;
+  *) echo "unknown verb: $verb (use: claim | done | release)" >&2; exit 1 ;;
+esac
 
-if [ ! -f "$TRIGGER_FILE" ]; then
-  echo "Error: trigger file not found: $1" >&2
-  exit 1
-fi
+rt="$(durable_pid)"
 
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-MACHINE_NAME="${FLEET_MACHINE_NAME:-$(hostname -s)}"
+# Rewrite the frontmatter in one awk pass: replace known fields if present, append the claim
+# fields inside the frontmatter if missing (older triggers predate claimed_pid/claimed_at).
+awk -v st="$newstatus" -v who="$MACHINE" -v pid="$rt" -v ts="$now" -v verb="$verb" '
+  BEGIN { fm=0; ds=0; dby=0; dpid=0; dat=0; dcomp=0 }
+  /^---[[:space:]]*$/ {
+    fm++
+    if (fm==2) {
+      if (!ds) print "status: " st
+      if (verb=="claim") {
+        if (!dby)  print "claimed_by: " who
+        if (!dpid) print "claimed_pid: " pid
+        if (!dat)  print "claimed_at: " ts
+      }
+      if (verb=="done"||verb=="complete"||verb=="completed") { if (!dcomp) print "completed_at: " ts }
+      print; next
+    }
+    print; next
+  }
+  fm==1 && /^status:[[:space:]]/        { print "status: " st; ds=1; next }
+  fm==1 && /^claimed_by:/   { if (verb=="claim") { print "claimed_by: " who; dby=1 } else print; next }
+  fm==1 && /^claimed_pid:/  { if (verb=="claim") { print "claimed_pid: " pid; dpid=1 } else print; next }
+  fm==1 && /^claimed_at:/   { if (verb=="claim") { print "claimed_at: " ts; dat=1 } else print; next }
+  fm==1 && /^completed_at:/ { if (verb=="done"||verb=="complete"||verb=="completed") { print "completed_at: " ts; dcomp=1 } else print; next }
+  { print }
+' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
 
-if [ "$ACTION" = "done" ]; then
-  # Release claim — mark completed
-  python3 - "$TRIGGER_FILE" "$TIMESTAMP" <<'PYEOF'
-import sys, re
-
-path, ts = sys.argv[1], sys.argv[2]
-text = open(path).read()
-
-def set_field(t, key, value):
-    pattern = rf'^({key}:\s*).*$'
-    replacement = rf'\g<1>{value}'
-    if re.search(pattern, t, re.MULTILINE):
-        return re.sub(pattern, replacement, t, flags=re.MULTILINE)
-    # Insert after the opening ---
-    return re.sub(r'^(---\n)', rf'\1{key}: {value}\n', t, count=1)
-
-text = set_field(text, 'status', 'completed')
-text = set_field(text, 'completed_at', ts)
-
-open(path, 'w').write(text)
-print(f"Released: {path}")
-PYEOF
-
-else
-  # Claim the item — mark in_progress
-  python3 - "$TRIGGER_FILE" "$MACHINE_NAME" "$TIMESTAMP" $$  <<'PYEOF'
-import sys, re
-
-path, machine, ts, pid = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-text = open(path).read()
-
-def set_field(t, key, value):
-    pattern = rf'^({key}:\s*).*$'
-    replacement = rf'\g<1>{value}'
-    if re.search(pattern, t, re.MULTILINE):
-        return re.sub(pattern, replacement, t, flags=re.MULTILINE)
-    return re.sub(r'^(---\n)', rf'\1{key}: {value}\n', t, count=1)
-
-text = set_field(text, 'status', 'in_progress')
-text = set_field(text, 'claimed_by', f'{machine}:{pid}')
-text = set_field(text, 'claimed_at', ts)
-
-open(path, 'w').write(text)
-print(f"Claimed: {path}")
-PYEOF
-fi
-
-if [ $? -ne 0 ]; then
-  echo "Error: failed to update trigger file" >&2
-  exit 1
-fi
-
-# Commit and push
-cd "$KNOWLEDGE_DIR" || exit 1
-git pull --rebase origin "$(git branch --show-current)" --quiet 2>/dev/null
-git add "$TRIGGER_FILE" 2>/dev/null || git add "${TRIGGER_FILE#$KNOWLEDGE_DIR/}"
-git commit -m "chore(inbox): claim ${TRIGGER_FILE##*/} [${ACTION}]" --quiet
-git push --quiet
+echo "$verb → $(basename "$f"): status=$newstatus (by $MACHINE, pid $rt, $now)"

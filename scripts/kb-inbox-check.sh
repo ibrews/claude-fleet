@@ -1,35 +1,56 @@
 #!/bin/bash
-# Claude Code SessionStart Hook: Check inbox for pending items
+# Claude Code Hook: Check KB inbox for pending items
+# Called on SessionStart — pulls KB, checks inbox, injects pending items into context
 #
-# Pulls the shared knowledge base, checks this machine's inbox file,
-# and injects any pending items into Claude's context so they get
-# processed automatically before anything else.
-#
-# Install: Add to ~/.claude/settings.json under hooks.SessionStart
-# Output: JSON with additionalContext (consumed by Claude Code)
+# Output: JSON with hookSpecificOutput.additionalContext containing any pending items
+# If no pending items, outputs nothing (hook is silent)
 
 set -euo pipefail
 
-# Where your shared knowledge base is cloned
-# Use ~/knowledge — never access ~/.claude/ directly (causes permission prompts)
-KB_DIR="${KB_DIR:-$HOME/knowledge}"
-
-# Machine name — used to find the right inbox file
-# IMPORTANT: Set KB_MACHINE_NAME env var explicitly for reliable operation.
-# If unset, falls back to hostname which may not match your inbox filename.
+KB_DIR="$HOME/knowledge"
 MACHINE_NAME="${KB_MACHINE_NAME:-$(hostname -s | tr '[:upper:]' '[:lower:]')}"
 
-# Map hostnames to inbox filenames
-# Customize this for your fleet — add your machine hostnames here
+# Map hostnames to inbox file names
 case "$MACHINE_NAME" in
-    # Example mappings (uncomment and edit):
-    # my-macbook*) INBOX_FILE="inbox/laptop.md" ;;
-    # my-server*)  INBOX_FILE="inbox/server.md" ;;
-    # my-desktop*) INBOX_FILE="inbox/desktop.md" ;;
-    *)           INBOX_FILE="inbox/${MACHINE_NAME}.md" ;;
+    macbookpro|alexs-macbook-pro*) INBOX_FILE="inbox/alex-mbp.md" ;;
+    alexs-mac-mini*|sam*)          INBOX_FILE="inbox/sam.md" ;;
+    fortress|fort*)                INBOX_FILE="inbox/fort.md" ;;
+    fridge|archie*)                INBOX_FILE="inbox/archie.md" ;;
+    lenovo*)                       INBOX_FILE="inbox/lenovo.md" ;;
+    theseus*)                      INBOX_FILE="inbox/theseus.md" ;;
+    toaster*)                      INBOX_FILE="inbox/toaster.md" ;;
+    *)                             INBOX_FILE="inbox/${MACHINE_NAME}.md" ;;
 esac
 
-# Pull latest KB with a 5-second timeout — don't block session start
+# classify_trigger <file> → echoes: suppress | flag-pending | flag-stale
+#   suppress     = completed/done/blocked, OR in_progress with a LIVE or recent (<30m) claim
+#                  → another session is on it (or it's not actionable now) → don't re-flag.
+#   flag-pending = status: pending → normal actionable item.
+#   flag-stale   = in_progress/claimed but the claimer's process is GONE and the claim is >30m old
+#                  → the working session died without finishing → re-surface so the item isn't lost.
+# Gives the claim a LIVENESS check (a crashed claimant can't suppress an item forever) — same
+# lesson as the session board's durable-PID fix.
+# See intelligence/decisions/2026-06-23-claude-session-leak-load-collapse.md
+classify_trigger() {
+  local f="$1" status pid claimed_at ca now
+  status="$(sed -n 's/^status:[[:space:]]*//p' "$f" 2>/dev/null | head -1 | awk '{print $1}')"
+  case "$status" in
+    completed|done|blocked|server-validated) echo suppress; return 0 ;;
+    pending|"")                              echo flag-pending; return 0 ;;
+  esac
+  # in_progress / claimed / other non-pending status → honor the claim, but verify liveness.
+  pid="$(sed -n 's/^claimed_pid:[[:space:]]*//p' "$f" 2>/dev/null | head -1 | awk '{print $1}')"
+  if [ -n "$pid" ] && ps -p "$pid" >/dev/null 2>&1; then echo suppress; return 0; fi
+  claimed_at="$(sed -n 's/^claimed_at:[[:space:]]*//p' "$f" 2>/dev/null | head -1 | awk '{print $1}')"
+  if [ -n "$claimed_at" ]; then
+    ca="$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$claimed_at" +%s 2>/dev/null || date -d "$claimed_at" +%s 2>/dev/null || echo 0)"
+    now="$(date -u +%s)"
+    if [ "${ca:-0}" -gt 0 ] && [ $(( now - ca )) -lt 1800 ]; then echo suppress; return 0; fi
+  fi
+  echo flag-stale; return 0
+}
+
+# Pull latest KB in background with a 5-second timeout — don't block session start
 cd "$KB_DIR" 2>/dev/null && timeout 5 git pull --rebase origin master >/dev/null 2>&1 || true
 
 # Check for pending items
@@ -38,48 +59,70 @@ if [ ! -f "$INBOX_PATH" ]; then
     exit 0
 fi
 
-# Extract pending items (lines starting with "- [ ]")
-PENDING=$(grep -E '^\s*- \[ \]' "$INBOX_PATH" 2>/dev/null || true)
+# Extract pending items (lines starting with "- [ ]"). If a line references a trigger file
+# (TRIGGER: <name>.md), DEFER it to the trigger loop below — that loop applies the claim/liveness
+# check and is the single source of truth for trigger-backed items (avoids double-flagging and
+# honors in-progress claims). Free-form inbox lines are flagged as-is.
+PENDING=""
+while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    tref="$(printf '%s' "$line" | sed -n 's/.*TRIGGER:[[:space:]]*\([A-Za-z0-9._-]*\.md\).*/\1/p')"
+    if [ -n "$tref" ] && [ -f "$KB_DIR/triggers/$tref" ]; then
+        continue   # trigger-backed → handled (with claim check) by the trigger loop
+    fi
+    PENDING="${PENDING}
+${line}"
+done < <(grep -E '^[[:space:]]*- \[ \]' "$INBOX_PATH" 2>/dev/null || true)
 
-# Check fleet-wide announcements (read-only broadcast)
-FLEET_FILE="$KB_DIR/inbox/fleet.md"
-FLEET_ANNOUNCEMENTS=""
-if [ -f "$FLEET_FILE" ]; then
-    FLEET_ANNOUNCEMENTS=$(sed -n '/^## Active/,/^## Archived/p' "$FLEET_FILE" 2>/dev/null | grep -E '^\- \[' || true)
+# Also scan triggers/ directory for pending triggers targeting this machine
+TRIGGER_NAME="${INBOX_FILE#inbox/}"    # e.g. "theseus.md"
+TRIGGER_NAME="${TRIGGER_NAME%.md}"     # e.g. "theseus"
+if [ -d "$KB_DIR/triggers" ]; then
+    for f in "$KB_DIR/triggers/"*.md; do
+        [ -f "$f" ] || continue
+        grep -q "target:.*$TRIGGER_NAME" "$f" 2>/dev/null || continue
+        case "$(classify_trigger "$f")" in
+            flag-pending)
+                PENDING="${PENDING}
+- [ ] TRIGGER: $(basename "$f") — see triggers/$(basename "$f")" ;;
+            flag-stale)
+                PENDING="${PENDING}
+- [ ] TRIGGER (⚠ claim abandoned — claimer process gone; verify with list_sessions, then re-claim or mark done): $(basename "$f") — see triggers/$(basename "$f")" ;;
+            *) : ;;   # suppress: completed / blocked / actively-claimed-and-live → don't nag
+        esac
+    done
 fi
 
-if [ -z "$PENDING" ] && [ -z "$FLEET_ANNOUNCEMENTS" ]; then
+# Trim leading whitespace from PENDING
+PENDING=$(echo "$PENDING" | sed '/^$/d')
+
+if [ -z "$PENDING" ]; then
     exit 0
 fi
 
 # Count pending items
 COUNT=$(echo "$PENDING" | wc -l | tr -d ' ')
 
-# Build the context that will be injected into Claude's session
+# Inject into Claude's context so it knows about pending inbox items
+# Using jq to properly escape the content
 TODAY=$(date +%Y-%m-%d)
 CONTEXT="You have ${COUNT} pending inbox item(s) in ${INBOX_FILE}. Process these items now:
 
 ${PENDING}
 
+BEFORE you start an item that has a trigger file, CLAIM it so sibling sessions stop re-flagging it:
+  $HOME/claude-fleet/inbox-claim.sh <trigger-file.md>     # sets status: in_progress + your durable pid + claimed_at
+The claim is liveness-checked: if your session dies, the item auto-re-surfaces — it won't be lost.
+
 After processing each item:
-1. If you can complete the task: mark it done (change '- [ ]' to '- [x] (${TODAY})'), move it to '## Done', and if it came from @sender, add a confirmation to the sender's inbox.
-2. If the task is too vague or ambiguous to act on: do NOT mark it done. Leave it as '- [ ]' in Pending. Write a clarification request to the sender's inbox explaining what you need to proceed. Example: '- [ ] [${TODAY}] @${MACHINE_NAME} → message: Re your task \"<original>\": I need clarification — <specific question>.'
-3. If the task is a question or decision that requires human judgment: do NOT mark it done. Leave it as '- [ ]' in Pending. Write back to the sender's inbox asking them to decide and re-submit.
-4. After all items are handled, commit and push: cd $KB_DIR && git add inbox/ && git commit -m 'chore(inbox): processed pending items' && git push"
+1. Mark it done: change '- [ ]' to '- [x] (${TODAY})' AND set the trigger to completed:
+   $HOME/claude-fleet/inbox-claim.sh <trigger-file.md> done   (sets status: completed + completed_at)
+2. Move it to the '## Done' section
+3. If the task came from another machine (@sender), add a confirmation to the sender's inbox
+4. Commit and push: cd ~/knowledge && git add inbox/ triggers/ && git commit -m 'chore(inbox): processed pending items' && git push"
 
-# Output JSON that Claude Code's hook system understands
-# - systemMessage: shown to the user in the terminal
-# - additionalContext: injected into Claude's context window
-# Detect Python — prefer python3, fall back to python
-PY=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || echo "")
-if [ -z "$PY" ]; then
-    # No Python available — output minimal JSON without it
-    printf '{"systemMessage":"📬 %s pending inbox item(s) found","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"You have %s pending inbox items in %s. Check the file manually."}}' \
-        "$COUNT" "$COUNT" "$INBOX_FILE"
-    exit 0
-fi
-
-"$PY" -c "
+# Output JSON with both a visible message to the user AND context for the model
+python3 -c "
 import json, sys
 context = sys.stdin.read()
 print(json.dumps({
