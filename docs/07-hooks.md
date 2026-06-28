@@ -8,6 +8,31 @@ Fleet scripts live in `~/claude-fleet/`. The only file that belongs in `~/.claud
 
 ## Hook Types Used
 
+### SessionStart — Session Board
+
+Before checking the inbox, this hook registers the current session on the board and prints who else is active. This is how you know whether another session is already compiling something, using a device, or working in the same repo.
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [{
+          "type": "command",
+          "command": "$HOME/claude-fleet/session-board-show.sh",
+          "timeout": 15,
+          "statusMessage": "Checking session board..."
+        }]
+      }
+    ]
+  }
+}
+```
+
+The hook auto-registers your session with a slug derived from your working directory + session ID, then prints a table of all active sessions showing their status, what singleton resources they hold (build engine, device, etc.), and when they last heartbeated. Sessions older than 15 minutes are flagged as stale.
+
+After your session ends, `session-board-checkout.sh` (wired to `SessionEnd`) removes your entry automatically.
+
 ### SessionStart — Inbox Check
 
 When Claude starts a session, this hook pulls the knowledge base and checks for pending inbox items. If found, it injects them into Claude's context so they're processed before anything else.
@@ -84,6 +109,25 @@ Also on Stop, sends a notification to Telegram:
 ```
 
 Multiple Stop hooks run in sequence — the KB sync runs first, then the notification.
+
+### SessionEnd — Session Board Checkout
+
+Automatically removes your session entry from the board when the session ends. Paired with the SessionStart board hook.
+
+```json
+{
+  "SessionEnd": [
+    {
+      "hooks": [{
+        "type": "command",
+        "command": "$HOME/claude-fleet/session-board-checkout.sh",
+        "timeout": 10,
+        "statusMessage": "Checking out of session board..."
+      }]
+    }
+  ]
+}
+```
 
 ### PostToolUse — Mid-Session Notifications
 
