@@ -56,4 +56,4 @@ Install: symlink or copy to `~/claude-fleet/telegram/channel-addons/tg-mode.sh` 
 2. Wire `statusline.py` as the statusLine
 3. Add `rate-limit-autosleep.sh` to StopFailure hooks
 4. Put `tg-mode.sh` in your PATH
-5. The `/usage`, `/sessions`, and `/briefing` commands in your bot will now have live rate-limit data
+5. The Telegram channel plugin's built-in commands (like `/usage`) now have live rate-limit data from `usage-state.json`. These commands are part of the official channel plugin itself — not the fleet-bot — so you don't need to change anything in `bot.mjs` to get this data

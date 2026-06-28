@@ -243,6 +243,7 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 | [Remote Control](docs/12-remote-control.md) | `/remote-control` — drive a session from the Claude mobile app |
 | [Model Routing](docs/13-model-routing.md) | Local → Gemini/NIM → Claude tiering with confidence thresholds |
 | [Concurrent Sessions](docs/14-concurrent-sessions.md) | Session board, inbox claim protocol, git worktree isolation |
+| [Second Brain](docs/15-second-brain.md) | Building a well-routable shared knowledge base |
 
 ## Try It — Fleet Commander
 
