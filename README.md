@@ -65,12 +65,14 @@ The `~/.claude/` directory is Claude Code's internal config directory. Accessing
 - **Drive any session from your phone.** Run `/remote-control` in any Claude Code session and open the URL on your phone — it renders natively in the Claude mobile app. Zero fleet config.
 - **Route tasks to the cheapest model.** A tiered routing system sends mechanical tasks to local Ollama models, research/drafting to Gemini 2.5 Flash or NVIDIA NIM, and reserves Claude for judgment and orchestration.
 - **Coordinate concurrent sessions.** A lightweight session board and inbox claim protocol prevent multiple machines from stepping on each other.
+- **Message a live session in real time.** The session bus lets one machine tap another's session on the shoulder mid-run — no waiting for the next session start, zero token cost while idle. See [docs/16-session-bus.md](docs/16-session-bus.md).
 
 ## Components
 
 | Component | What it is |
 |-----------|------------|
 | Inbox protocol (git) | Async machine-to-machine task passing via a shared KB repo |
+| Session bus (optional) | Real-time session-to-session messaging via a tiny zero-dependency server — see [docs/16-session-bus.md](docs/16-session-bus.md) |
 | Telegram notifications | Outbound "task done / needs you" pings from every machine (fleet-wide) |
 | `/remote-control` (built-in) | Native mobile app access to any live session — per-session, zero config |
 | Telegram channel plugin (optional) | Message-driven remote session, single machine fleet-wide — see [docs/06-telegram-bot.md](docs/06-telegram-bot.md) |
@@ -79,7 +81,7 @@ The `~/.claude/` directory is Claude Code's internal config directory. Accessing
 
 - Not a CI/CD system. There's no pipeline — machines work autonomously.
 - Not a cloud orchestration tool. These are your physical machines, connected peer-to-peer.
-- Not dependent on a central server. The git repo is the only required shared resource. The optional [Control Center](docs/11-control-center.md) adds a centralized dashboard for fleet-wide visibility and instant task dispatch, but the core inbox system works without it.
+- Not dependent on a central server. The git repo is the only required shared resource. The optional [Control Center](docs/11-control-center.md) adds a centralized dashboard for fleet-wide visibility and instant task dispatch, and the optional [Session Bus](docs/16-session-bus.md) adds real-time session-to-session messaging (one small process, zero npm dependencies) — but the core inbox system works without either.
 
 ## Prerequisites
 
@@ -222,8 +224,9 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 1. **Write a one-line task to a machine's inbox and trigger it** — edit `inbox/beta.md`, add `- [ ] [2024-01-01 12:00] @alpha → check: Are you alive?`, then run `~/claude-fleet/fleet-inbox-check.sh beta`. Claude Code on that machine picks it up, runs it headlessly, and writes results back within seconds.
 2. **Send a task with the fleet dispatch script** — `node scripts/fleet-task.js beta "Summarize today's git log in ~/knowledge" --tools Read,Bash` — results stream back to your terminal in real time.
 3. **Run `session-board.sh board`** — prints a table of all active sessions across your fleet, their status, what each one is doing, and when they last heartbeated. Any session stale for 15+ minutes is flagged.
-4. **Open the Fleet Commander game** (`docs/fleet-commander.html` locally or the [GitHub Pages link](https://ibrews.github.io/claude-fleet/docs/fleet-commander.html)) — an interactive browser game that teaches the full architecture: name your machines, install the stack, and dispatch tasks while watching data pulses travel through the network.
-5. **Route a heavy task through Gemini** — set `GEMINI_API_KEY` in your shell, then ask Claude to summarize a large file using `GEMINI_API_KEY=$GEMINI_API_KEY gemini -p "summarize this: $(cat big-file.txt)" -y`. This offloads token cost from Claude to Gemini's 1M-context window.
+4. **Open the Fleet Commander game** (`docs/fleet-commander.html` locally or the [GitHub Pages link](https://ibrews.github.io/claude-fleet/docs/fleet-commander.html)) — an interactive browser game that teaches the full architecture: name your machines, install the stack, and dispatch tasks via Inbox, Instant, or the real-time Bus while watching data pulses travel through the network.
+5. **Stand up the session bus and message a session live** — `node scripts/fleet-bus-server.js`, then arm a listener with `node scripts/fleet-bus-client.js listen --session test` on one machine and `node scripts/fleet-bus-client.js send --to <that machine> --body "hi"` from another. See [docs/16-session-bus.md](docs/16-session-bus.md).
+6. **Route a heavy task through Gemini** — set `GEMINI_API_KEY` in your shell, then ask Claude to summarize a large file using `GEMINI_API_KEY=$GEMINI_API_KEY gemini -p "summarize this: $(cat big-file.txt)" -y`. This offloads token cost from Claude to Gemini's 1M-context window.
 
 ## Documentation
 
@@ -244,6 +247,7 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 | [Model Routing](docs/13-model-routing.md) | Local → Gemini/NIM → Claude tiering with confidence thresholds |
 | [Concurrent Sessions](docs/14-concurrent-sessions.md) | Session board, inbox claim protocol, git worktree isolation |
 | [Second Brain](docs/15-second-brain.md) | Building a well-routable shared knowledge base |
+| [Session Bus](docs/16-session-bus.md) | Real-time session-to-session messaging — a zero-dependency alternative to waiting for the next session start |
 
 ## Try It — Fleet Commander
 

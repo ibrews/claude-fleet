@@ -529,6 +529,16 @@ const HERO_SLIDES = [
         D: drive: 1.2 TB free of 2.0 TB (40% used)
       </div>
     </div>` },
+  { title: 'Real-time bus — tap a session on the shoulder', sub: 'No SSH, no waiting for the next session. If they\'re listening, it lands instantly.', visual: `
+    <div style="margin-top:16px">
+      <div class="anim-up d1" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;font-size:13px;justify-content:center">
+        <span style="color:#888">You</span> <span style="color:#a78bfa">→ bus →</span> <span style="color:#888">Beta's live session</span> <span style="color:#22c55e">→ instant</span>
+      </div>
+      <div class="anim-scale d4" style="background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.3);border-radius:8px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:11px;text-align:left">
+        <div style="color:#a78bfa;font-size:10px;margin-bottom:4px">🔔 fleet-bus — from alpha</div>
+        your build looks stale, can you re-pull?
+      </div>
+    </div>` },
   { title: 'Chain tasks across machines', sub: 'Multi-step workflows. Each step feeds into the next.', visual: `
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;font-size:13px">
       <div class="anim-left d1" style="display:flex;align-items:center;gap:8px"><span style="color:#6366f1;font-weight:700">1.</span> Alpha: "Run tests"</div>
@@ -544,7 +554,7 @@ const HERO_SLIDES = [
       </div>
       <a class="anim-scale d2" href="https://github.com/ibrews/claude-fleet" target="_blank" style="display:inline-block;padding:10px 24px;background:#d97706;color:#000;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;margin-top:8px">⭐ Star on GitHub</a>
       <div style="display:flex;gap:16px;justify-content:center;margin-top:16px;flex-wrap:wrap;font-size:12px;color:#888">
-        <span class="anim-up d1">🔗 Tailscale</span><span class="anim-up d2">📬 Git inboxes</span><span class="anim-up d3">🖥️ Dashboard</span><span class="anim-up d4">⚡ Instant dispatch</span><span class="anim-up d5">⛓ Workflows</span><span class="anim-up d6">📱 Telegram</span>
+        <span class="anim-up d1">🔗 Tailscale</span><span class="anim-up d2">📬 Git inboxes</span><span class="anim-up d3">🖥️ Dashboard</span><span class="anim-up d4">⚡ Instant dispatch</span><span class="anim-up d5">🔔 Live bus</span><span class="anim-up d6">⛓ Workflows</span><span class="anim-up d7">📱 Telegram</span>
       </div>
     </div>` },
 ];
@@ -1659,11 +1669,13 @@ function renderPlay() {
           <button class="dice-btn" onclick="randomizeTask()" title="Random task">🎲</button>
           <button class="btn btn-green" id="btn-dispatch-instant" style="min-width:110px">⚡ Instant</button>
           <button class="btn btn-primary" id="btn-dispatch-inbox" style="min-width:110px;background:var(--yellow);border-color:var(--yellow);color:#000">📬 Inbox</button>
+          <button class="btn" id="btn-dispatch-bus" style="min-width:110px;background:#a78bfa;border-color:#a78bfa;color:#000">🔔 Bus</button>
         </div>
         <div class="concept-tooltip" style="margin-top:0">
           <strong>Inbox</strong> writes a task to the machine's <code class="mono">inbox/*.md</code> file.
           The machine processes it on next session start via the <strong>SessionStart hook</strong>.<br>
-          <strong>Instant</strong> SSHes to the machine and runs <code class="mono">claude -p "task" --max-turns 15</code>. Result comes back immediately.
+          <strong>Instant</strong> SSHes to the machine and runs <code class="mono">claude -p "task" --max-turns 15</code>. Result comes back immediately.<br>
+          <strong>Bus</strong> pushes straight into a live session if one's listening — instant, no SSH, no new session. If nobody's listening it queues and delivers the moment a session starts, same as Inbox.
         </div>
       </div>
     </div>
@@ -1678,7 +1690,7 @@ function renderPlay() {
         <div class="concept-tooltip" style="margin-bottom:12px">
           <strong>Before fleet:</strong> You'd SSH into each machine one-by-one, run the same command, wait, repeat.
           <strong>After fleet:</strong> One click. Every machine works in parallel. Results stream back.<br>
-          <strong>⚡ Instant</strong> = SSH + immediate execution. <strong>📬 Inbox</strong> = write to all inboxes, machines process on next session.
+          <strong>⚡ Instant</strong> = SSH + immediate execution. <strong>📬 Inbox</strong> = write to all inboxes, machines process on next session. <strong>🔔 Bus</strong> = instant for whoever's already listening, queued for the rest.
         </div>
         <div class="fleet-task-row">
           ${FLEET_TASKS.map(t => {
@@ -1688,6 +1700,7 @@ function renderPlay() {
               <span class="fleet-task-label">${t.icon} ${t.label.length > 30 ? t.label.slice(0,30) + '...' : t.label} <span style="color:var(--accent);font-size:10px">+${t.points}</span></span>
               <button class="fleet-mode-btn" onclick="dispatchFleetWide('${safeLabel}', ${t.points}, 'instant')" title="Instant: SSH to all machines now">⚡</button>
               <button class="fleet-mode-btn inbox-mode" onclick="dispatchFleetWide('${safeLabel}', ${t.points}, 'inbox')" title="Inbox: Write to all machine inboxes">📬</button>
+              <button class="fleet-mode-btn" style="background:rgba(167,139,250,0.15);border-color:#a78bfa;color:#a78bfa" onclick="dispatchFleetWide('${safeLabel}', ${t.points}, 'bus')" title="Bus: instant to any live session, queued for the rest">🔔</button>
             </div>`;
           }).join('')}
         </div>
@@ -1699,6 +1712,7 @@ function renderPlay() {
             <button class="dice-btn" onclick="document.getElementById('fleet-custom-task').value=pick(TASK_IDEAS)">🎲</button>
             <button class="btn btn-green" style="font-size:12px;min-width:130px" onclick="const t=document.getElementById('fleet-custom-task').value.trim();if(t){dispatchFleetWide(t,25,'instant');document.getElementById('fleet-custom-task').value=''}">⚡ Instant to All</button>
             <button class="btn" style="font-size:12px;min-width:130px;background:var(--yellow);border-color:var(--yellow);color:#000" onclick="const t=document.getElementById('fleet-custom-task').value.trim();if(t){dispatchFleetWide(t,25,'inbox');document.getElementById('fleet-custom-task').value=''}">📬 Inbox to All</button>
+            <button class="btn" style="font-size:12px;min-width:130px;background:#a78bfa;border-color:#a78bfa;color:#000" onclick="const t=document.getElementById('fleet-custom-task').value.trim();if(t){dispatchFleetWide(t,25,'bus');document.getElementById('fleet-custom-task').value=''}">🔔 Bus to All</button>
           </div>
           <div style="margin-top:10px;font-size:12px;color:var(--dim)">Or build one:</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
@@ -1716,6 +1730,7 @@ function renderPlay() {
             </select>
             <button class="btn btn-sm" style="background:var(--green);border-color:var(--green);color:#000" onclick="const v=document.getElementById('ml-verb').value,t=document.getElementById('ml-target').value,s=document.getElementById('ml-scope').value;dispatchFleetWide(v+' '+t+' on '+s, 30, 'instant')">⚡ Go</button>
             <button class="btn btn-sm" style="background:var(--yellow);border-color:var(--yellow);color:#000" onclick="const v=document.getElementById('ml-verb').value,t=document.getElementById('ml-target').value,s=document.getElementById('ml-scope').value;dispatchFleetWide(v+' '+t+' on '+s, 30, 'inbox')">📬 Go</button>
+            <button class="btn btn-sm" style="background:#a78bfa;border-color:#a78bfa;color:#000" onclick="const v=document.getElementById('ml-verb').value,t=document.getElementById('ml-target').value,s=document.getElementById('ml-scope').value;dispatchFleetWide(v+' '+t+' on '+s, 30, 'bus')">🔔 Go</button>
           </div>
         </div>
       </div>
@@ -1815,6 +1830,52 @@ function dispatchFleetWide(task, points, mode) {
           }, 2000 + Math.random() * 2000);
         }, 2500 + Math.random() * 1500);
       }, 2000 + i * 400);
+    });
+    render();
+  } else if (mode === 'bus') {
+    // Bus mode: per-machine branch on whether it's already listening (online/busy)
+    // vs not — mirrors dispatchBus's single-target logic, see comment there.
+    addActivity('dispatch', `🔔 <strong>Fleet-wide bus:</strong> "${task}" → ${G.machines.length} machines`);
+    learnConcept('bus-dispatch');
+    G.usedBus = true;
+
+    G.machines.forEach((m, i) => {
+      const listening = m.status === 'online' || m.status === 'busy';
+      if (listening) {
+        if (FleetViz.enabled) setTimeout(() => FleetViz.sendPulse(i, '#a78bfa'), i * 80);
+        addScore(3, `Bus (live) → ${m.name}: ${task}`);
+        setTimeout(() => {
+          const response = getResponse(task, m);
+          G.tasksCompleted++;
+          addActivity('complete', `✅ <strong>${m.name}</strong> (bus, live): ${response.split('\n')[0].slice(0, 80)}`);
+          sfxComplete();
+          if (FleetViz.enabled) FleetViz.fireworks(i);
+          checkRank();
+          render();
+        }, 400 + i * 100 + Math.random() * 400);
+      } else {
+        if (FleetViz.enabled) setTimeout(() => FleetViz.sendLetter(i, '#a78bfa'), i * 120);
+        addScore(1, `Bus (queued) → ${m.name}: ${task}`);
+        setTimeout(() => {
+          m.status = 'busy';
+          m.currentTask = task;
+          if (FleetViz.enabled) FleetViz.sessionStartMachine(i);
+          addActivity('hook', `🚀 <strong>${m.name}</strong> started a session — queued bus message flushed immediately`);
+          G.hooksFired++;
+          render();
+          setTimeout(() => {
+            const response = getResponse(task, m);
+            m.status = 'online';
+            m.currentTask = null;
+            G.tasksCompleted++;
+            addActivity('complete', `✅ <strong>${m.name}</strong> (bus, queued): ${response.split('\n')[0].slice(0, 80)}`);
+            sfxComplete();
+            if (FleetViz.enabled) FleetViz.deactivateMachine(i);
+            checkRank();
+            render();
+          }, 1500 + Math.random() * 1500);
+        }, 1800 + i * 300);
+      }
     });
     render();
   } else {
@@ -2103,6 +2164,77 @@ function dispatchInstant(target, task) {
   }, 1500 + Math.random() * 2000);
 }
 
+// Change: Bus dispatch mode (real-time session bus, docs/16-session-bus.md).
+// Unlike Inbox (always waits for next session) and Instant (always SSHes in
+// fresh), Bus checks whether the target already has a live session running.
+// If so: instant delivery, no SSH, no new session — the cheapest and fastest
+// path. If not: it queues exactly like Inbox and delivers the moment a
+// session starts. This mirrors the real server's behavior in fleet-bus-server.js.
+function dispatchBus(target, task) {
+  if (!target || !task) return;
+  const machine = G.machines.find(m => m.name === target);
+  const machineIdx = G.machines.indexOf(machine);
+  const listening = machine.status === 'online' || machine.status === 'busy';
+
+  learnConcept('bus-dispatch');
+  G.usedBus = true;
+  sfxDispatch();
+
+  if (listening) {
+    if (FleetViz.enabled && machineIdx >= 0) FleetViz.sendPulse(machineIdx, '#a78bfa');
+    addActivity('dispatch', `🔔 <strong>Bus dispatch</strong> → ${target}: "${task}" — live session listening, delivered instantly`);
+    addActivity('hook', `📡 Pushed straight into ${target}'s running session via the fleet bus — no SSH, no git round-trip, no wait for next session start`);
+    G.hooksFired++;
+    G.score += 3;
+    saveScore();
+    showToast('🔔 Delivered Live', `${target} was already listening — landed instantly.`, 'success');
+    render();
+
+    setTimeout(() => {
+      const response = getResponse(task, machine);
+      G.tasksCompleted++;
+      addActivity('complete', `✅ <strong>${target}</strong> acted on it immediately: "${response.split('\n')[0].slice(0, 80)}"`);
+      sfxComplete();
+      G.score += 1;
+      saveScore();
+      if (FleetViz.enabled && machineIdx >= 0) FleetViz.fireworks(machineIdx);
+      checkRank();
+      render();
+    }, 400 + Math.random() * 400);
+  } else {
+    if (FleetViz.enabled && machineIdx >= 0) FleetViz.sendLetter(machineIdx, '#a78bfa');
+    addActivity('dispatch', `🔔 <strong>Bus dispatch</strong> → ${target}: "${task}" — nobody listening, queued (delivers the moment a session starts)`);
+    G.hooksFired++;
+    G.score += 1;
+    saveScore();
+    showToast('🔔 Queued on the Bus', `${target} isn't listening right now — arrives automatically at next session start.`, 'info');
+    render();
+
+    setTimeout(() => {
+      machine.status = 'busy';
+      machine.currentTask = task;
+      if (FleetViz.enabled && machineIdx >= 0) FleetViz.sessionStartMachine(machineIdx);
+      addActivity('hook', `🚀 <strong>${target}</strong> started a session — SessionStart hook flushes the queued bus message immediately, no KB pull needed for this part`);
+      learnConcept('sessionstart-hook');
+      render();
+
+      setTimeout(() => {
+        const response = getResponse(task, machine);
+        machine.status = 'online';
+        machine.currentTask = null;
+        G.tasksCompleted++;
+        addActivity('complete', `✅ <strong>${target}</strong>: ${response.split('\n')[0].slice(0, 80)}`);
+        sfxComplete();
+        G.score += 1;
+        saveScore();
+        if (FleetViz.enabled && machineIdx >= 0) FleetViz.deactivateMachine(machineIdx);
+        checkRank();
+        render();
+      }, 1500 + Math.random() * 1500);
+    }, 1800 + Math.random() * 1200);
+  }
+}
+
 // ── Event Binding ──
 function bindEvents() {
   const nameInput = document.getElementById('company-name');
@@ -2141,6 +2273,7 @@ function bindEvents() {
 
   const dispatchInboxBtn = document.getElementById('btn-dispatch-inbox');
   const dispatchInstantBtn = document.getElementById('btn-dispatch-instant');
+  const dispatchBusBtn = document.getElementById('btn-dispatch-bus');
   const dispatchInput = document.getElementById('dispatch-task');
   if (dispatchInboxBtn) dispatchInboxBtn.onclick = () => {
     const target = document.getElementById('dispatch-target').value;
@@ -2152,11 +2285,19 @@ function bindEvents() {
     const task = dispatchInput.value.trim();
     if (task) { dispatchInstant(target, task); dispatchInput.value = ''; }
   };
+  if (dispatchBusBtn) dispatchBusBtn.onclick = () => {
+    const target = document.getElementById('dispatch-target').value;
+    const task = dispatchInput.value.trim();
+    if (task) { dispatchBus(target, task); dispatchInput.value = ''; }
+  };
   if (dispatchInput) dispatchInput.onkeydown = (e) => {
     if (e.key === 'Enter') {
       const target = document.getElementById('dispatch-target').value;
       const task = dispatchInput.value.trim();
-      if (task) { (e.shiftKey ? dispatchInstant : dispatchInbox)(target, task); dispatchInput.value = ''; }
+      if (!task) return;
+      const mode = e.ctrlKey || e.metaKey ? dispatchBus : (e.shiftKey ? dispatchInstant : dispatchInbox);
+      mode(target, task);
+      dispatchInput.value = '';
     }
   };
 }
