@@ -33,12 +33,69 @@
 // Monitor-hook recipe that lets a live session receive these messages.
 
 const http = require('http');
+const https = require('https');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
 const PORT = parseInt(process.env.PORT || process.argv.find(a => a.startsWith('--port='))?.split('=')[1] || '4100', 10);
 const TOKEN = process.env.FLEET_BUS_TOKEN || '';
 const MAX_BODY = 4000;
 const MAX_WAIT_SECONDS = 60;
+
+// ── Optional: relay `--to human` to Telegram via fleet-bot's own bot ──────
+// Nobody will ever poll as machine "human", so instead of queuing forever,
+// treat it as a reserved target: if fleet-bot's credentials file exists
+// (~/claude-fleet/fleet.env — see telegram/fleet-bot/README.md), relay the
+// message there. Entirely optional — with no fleet.env, `--to human` just
+// queues like any other machine (nobody will ever come collect it; that's a
+// signal you haven't set up fleet-bot, not a crash).
+function loadTelegramCreds() {
+  const envPath = path.join(os.homedir(), 'claude-fleet', 'fleet.env');
+  const creds = {};
+  try {
+    for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
+      const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
+      if (m) creds[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    }
+  } catch (e) { /* no fleet-bot set up — human relay just queues, see above */ }
+  return creds;
+}
+const TELEGRAM = loadTelegramCreds();
+
+function sendTelegram(text) {
+  return new Promise((resolve, reject) => {
+    if (!TELEGRAM.TELEGRAM_BOT_TOKEN || !TELEGRAM.TELEGRAM_CHAT_ID) {
+      return reject(new Error('~/claude-fleet/fleet.env missing or incomplete — see telegram/fleet-bot/README.md'));
+    }
+    const payload = JSON.stringify({ chat_id: TELEGRAM.TELEGRAM_CHAT_ID, text, parse_mode: 'HTML' });
+    const req = https.request({
+      hostname: 'api.telegram.org',
+      path: `/bot${TELEGRAM.TELEGRAM_BOT_TOKEN}/sendMessage`,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
+      timeout: 10000,
+    }, (res) => {
+      let raw = '';
+      res.on('data', c => raw += c);
+      res.on('end', () => {
+        let parsed;
+        try { parsed = JSON.parse(raw); } catch (e) { return reject(new Error(`bad Telegram response: ${raw.slice(0, 200)}`)); }
+        if (!parsed.ok) return reject(new Error(parsed.description || 'Telegram sendMessage failed'));
+        resolve(parsed.result);
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('Telegram request timed out')));
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
 // In-memory only — see header comment. { id, created, from, fromSession, to, toSession, body, delivered }
 let nextId = 1;
@@ -142,7 +199,7 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'POST' && url.pathname === '/send') {
     if (!tokenOk(req)) return json(res, 401, { error: 'missing or invalid X-Fleet-Token' });
-    return readJsonBody(req, (err, body) => {
+    return readJsonBody(req, async (err, body) => {
       if (err) return json(res, 400, { error: err.message });
       const to = String(body.to || '').toLowerCase().trim();
       const from = String(body.from || '').toLowerCase().trim();
@@ -160,6 +217,22 @@ const server = http.createServer((req, res) => {
         delivered: false,
       };
       messages.push(msg);
+
+      // `--to human` never has a poller — relay to Telegram instead (see
+      // loadTelegramCreds above). Tagged #sid=/#machine= so a reply in
+      // Telegram can route back via fleet-bot's existing reply-router
+      // (telegram/fleet-bot/bot.mjs already understands this tag format).
+      if (to === 'human') {
+        const tag = msg.fromSession ? `\n\n#sid=${escHtml(msg.fromSession)} #machine=${escHtml(msg.from)}` : '';
+        try {
+          await sendTelegram(`🔔 <b>${escHtml(msg.from)}</b>: ${escHtml(msg.body)}${tag}`);
+          msg.delivered = true;
+          return json(res, 200, { id: msg.id, delivered_live: true, queued: false, via: 'telegram' });
+        } catch (e) {
+          return json(res, 502, { id: msg.id, delivered_live: false, queued: true, error: `telegram relay failed: ${e.message}` });
+        }
+      }
+
       const delivered = deliver(msg);
       return json(res, 200, { id: msg.id, delivered_live: delivered, queued: !delivered });
     });

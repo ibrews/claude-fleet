@@ -91,6 +91,20 @@ node scripts/fleet-bus-client.js sessions             # fleet-wide "who's armed"
 node scripts/fleet-bus-client.js history --machine beta  # last 50 messages (debugging)
 ```
 
+## Messaging a human (Telegram, optional)
+
+`--to human` is a reserved target: nobody will ever poll as machine "human", so instead of queuing forever, the server relays it to Telegram via [fleet-bot](../telegram/fleet-bot/) — reusing fleet-bot's own bot, no second bot needed. Entirely optional: with no `~/claude-fleet/fleet.env`, `--to human` just queues silently (harmless, just means nobody's set up the relay yet).
+
+```bash
+node scripts/fleet-bus-client.js send --to human --body "..." --session my-id
+```
+
+Use it when a session is about to finish ambiguous or non-trivial work and there's a real chance the operator would want to redirect before it actually stops — send a summary, then arm a **bounded** listener (a few minutes, not the long-running window used for active collaboration) instead of exiting immediately. A reply within the window delivers live through the bus; nothing arrives, the listener just times out and the session finishes stopping normally.
+
+**Replying from Telegram** works the same way turn-guard replies already do — fleet-bot tags the relayed message `#sid=/#machine=`, and replying to it in Telegram routes back through the bus if the session is still listening (instant, and reaches Windows machines fleet-bot's SSH `claude --resume` path can't), or falls back to `claude --resume` if it's already stopped. See [telegram/fleet-bot/README.md](../telegram/fleet-bot/README.md).
+
+`/sessions` and `/msg <machine> <text>` are also available directly in Telegram once fleet-bot is set up — no reply-thread needed.
+
 ## API Reference
 
 | Method | Path | Purpose |

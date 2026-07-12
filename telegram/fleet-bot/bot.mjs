@@ -1,25 +1,36 @@
 #!/usr/bin/env node
 // fleet-bot — Telegram relay for a Claude Code fleet.
 //
-// Runs on the always-on gateway machine. Long-polls Telegram. Two jobs:
+// Runs on the always-on gateway machine. Long-polls Telegram. Jobs:
 //
 //   1. Handle callback-query button presses from turn-guard warnings.
 //        s:<machine>:<sid>  → SSH to <machine>, touch /tmp/tg-<sid>.stop
 //        u:<machine>:<sid>  → SSH to <machine>, write /tmp/tg-<sid>.max = curCount + 250
 //        k:<machine>:<sid>  → SSH to <machine>, resume session with "Great, keep going!"
 //
-//   2. Handle text replies-to-message. Turn-guard messages carry trailing
-//      `#sid=<uuid> #machine=<hostname>` tags. When the user replies to such
-//      a message, the bot parses those tags and runs
-//      `claude --resume <sid> -p "<text>"` on the target machine.
+//   2. Handle text replies-to-message. Turn-guard messages (and the session
+//      bus's `--to human` relay — see scripts/fleet-bus-server.js) carry
+//      trailing `#sid=<uuid> #machine=<hostname>` tags. On reply: if that
+//      session currently has a LIVE fleet-bus listener, route the reply
+//      through the bus instead (instant, works cross-platform including
+//      Windows — SSH `claude --resume` below can't reach Windows machines).
+//      Otherwise fall back to `claude --resume <sid> -p "<text>"` over SSH.
+//
+//   3. Direct commands (no reply needed): /sessions (who's listening on the
+//      bus, fleet-wide), /msg <machine> <text> (bus-message any machine).
 //
 // Config:
 //   ~/claude-fleet/fleet.env              TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 //   telegram/fleet-bot/machines.json      { hostname: { host, user } }  (Tailscale map)
+//   FLEET_BUS_URL / FLEET_BUS_TOKEN env   optional — only needed for bus-aware
+//                                          routing (2) and commands (3). Without
+//                                          it fleet-bot still works as before
+//                                          (turn-guard buttons + SSH resume).
 
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -48,6 +59,46 @@ if (!fs.existsSync(MACHINES_FILE)) {
     process.exit(1);
 }
 const MACHINES = JSON.parse(fs.readFileSync(MACHINES_FILE, 'utf8'));
+
+const FCC_URL = process.env.FLEET_BUS_URL || 'http://localhost:4100';
+const FCC_TOKEN = process.env.FLEET_BUS_TOKEN || '';
+
+// ---------- fleet session bus helpers (optional — see header comment) ----------
+
+function busApi(method, urlPath, body) {
+    return new Promise((resolve, reject) => {
+        const data = body ? JSON.stringify(body) : null;
+        const headers = { 'Content-Type': 'application/json' };
+        if (data) headers['X-Fleet-Token'] = FCC_TOKEN;
+        const req = http.request(FCC_URL + urlPath, { method, headers, timeout: 8000 }, (res) => {
+            let raw = '';
+            res.on('data', c => raw += c);
+            res.on('end', () => {
+                let parsed;
+                try { parsed = JSON.parse(raw); } catch (e) { return reject(new Error(`bad bus response: ${raw.slice(0, 200)}`)); }
+                if (res.statusCode >= 400) return reject(new Error(parsed.error || `bus HTTP ${res.statusCode}`));
+                resolve(parsed);
+            });
+        });
+        req.on('timeout', () => req.destroy(new Error('bus request timed out')));
+        req.on('error', reject);
+        if (data) req.write(data);
+        req.end();
+    });
+}
+
+async function isListeningOnBus(machine, sid) {
+    try {
+        const rows = await busApi('GET', '/sessions');
+        return rows.some(r => r.machine === machine.toLowerCase() && r.session === sid);
+    } catch (e) {
+        return false; // bus unreachable — fall back to SSH resume, don't block on it
+    }
+}
+
+async function busSend(to, to_session, text) {
+    return busApi('POST', '/send', { to, to_session, from: 'human', body: text });
+}
 
 // ---------- ssh helpers ----------
 
@@ -128,6 +179,21 @@ async function actionResume(machine, sid, message) {
     }
 }
 
+// Prefer the live bus (instant, cross-platform) when the target session is
+// currently listening; else fall back to the original SSH `claude --resume`
+// path (POSIX-only, works on a stopped session).
+async function routeReply(machine, sid, text) {
+    if (await isListeningOnBus(machine, sid)) {
+        try {
+            await busSend(machine, sid, text);
+            return `Delivered live via the fleet bus to ${sid.slice(0, 8)} on ${machine} (session is actively listening).`;
+        } catch (err) {
+            // bus send failed even though the session showed as listening — fall through to resume
+        }
+    }
+    return actionResume(machine, sid, text);
+}
+
 // ---------- bot ----------
 
 const bot = new Bot(TOKEN);
@@ -145,7 +211,7 @@ bot.on('callback_query:data', async (ctx) => {
         let result;
         if (action === 's')      result = await actionStop(machine, sid);
         else if (action === 'u') result = await actionUnrestrict(machine, sid);
-        else if (action === 'k') result = await actionResume(machine, sid, 'Great, keep going!');
+        else if (action === 'k') result = await routeReply(machine, sid, 'Great, keep going!');
         else {
             await ctx.answerCallbackQuery({ text: `Unknown action: ${action}` });
             return;
@@ -173,7 +239,32 @@ bot.on('message:text', async (ctx) => {
     const replied = ctx.message.reply_to_message;
 
     if (!replied) {
-        if (text === '/ping') await ctx.reply('pong');
+        if (text === '/ping') { await ctx.reply('pong'); return; }
+
+        if (text === '/sessions') {
+            try {
+                const rows = await busApi('GET', '/sessions');
+                if (!rows.length) { await ctx.reply('No sessions currently listening on the fleet bus.'); return; }
+                const lines = rows.map(r => `• ${r.machine}/${r.session} (since ${r.since})`);
+                await ctx.reply(`🟢 Listening now:\n${lines.join('\n')}`);
+            } catch (err) {
+                await ctx.reply(`Error fetching sessions (is fleet-bus-server.js running? see FLEET_BUS_URL): ${err.message}`);
+            }
+            return;
+        }
+
+        const msgMatch = text.match(/^\/msg\s+(\S+)\s+([\s\S]+)$/);
+        if (msgMatch) {
+            const [, machine, body] = msgMatch;
+            try {
+                const out = await busSend(machine.toLowerCase(), null, body);
+                await ctx.reply(out.delivered_live ? `✅ Delivered live to ${machine}.` : `📬 Queued for ${machine} (no live listener right now).`);
+            } catch (err) {
+                await ctx.reply(`Error sending to ${machine}: ${err.message}`);
+            }
+            return;
+        }
+
         return;
     }
 
@@ -183,7 +274,7 @@ bot.on('message:text', async (ctx) => {
         return;
     }
     try {
-        const result = await actionResume(entry.machine, entry.sid, text);
+        const result = await routeReply(entry.machine, entry.sid, text);
         await ctx.reply(`📨 ${result}`);
     } catch (err) {
         await ctx.reply(`Error routing reply: ${err.message}`);
