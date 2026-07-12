@@ -37,9 +37,37 @@ you                                                              orchestrator lo
 ```
 
 Every cycle: pull the latest state, reconcile it into done/in-flight/blocked, dispatch anything
-green-lit under the guardrail policy, regenerate a static dashboard, check whether you need to be
-interrupted, and persist. All state lives in plain files — a crash or restart just re-reads them, no
+green-lit under the guardrail policy, regenerate a static dashboard (plus a fleet-wide index if
+you're running more than one instance), check whether you need to be interrupted (plus a daily
+digest), and persist. All state lives in plain files — a crash or restart just re-reads them, no
 database.
+
+## The dashboard is a briefing, not a status mirror
+
+The dashboard renders two independent layers, each with its own visible staleness stamp:
+
+- **Mechanical** — sessions, open/blocked/done triggers, anomalies, inbox items. Regenerated every
+  cycle straight from `reconcile.py`'s state model. Always current, never lies about its own age.
+- **Briefing** (`briefing.json`) — the narrative a cold reader needs: a north star, per-phase
+  progress bars, a "where we are" one-liner, topic Q&As, the biggest unsolved problems, ranked
+  recommendations, and a checkpoint timeline. A script can't write "what's the latest on the auth
+  migration" — this layer is **AI-authored at checkpoints** by a session with real project context,
+  never by the mechanical cycle. The dashboard shows a staleness chip once it's more than a few days
+  old, so nobody mistakes a stale narrative for current truth.
+
+If `briefing.json` doesn't exist yet, the dashboard degrades to mechanical-only with a hint — a
+fresh fork works immediately, the briefing is additive once someone writes one.
+
+## Durable state (optional)
+
+By default all generated state (ledger, dedup file, dashboard, briefing) stays local to whichever
+machine runs the loop. For a project you want to survive a dead host, point `instance.json`'s
+`state_root` at a dedicated git repo you control; `run-loop.sh` pulls it before each cycle and
+commits+pushes it after. Recovery from a dead machine is then just: clone your KB, clone the state
+repo, restart the loop. A `HALT` file at that repo's root halts *every* instance sharing it — pushed
+from anywhere, including the GitHub web editor, it's a remote kill switch. This is opt-in — omit
+`state_root` and the engine falls back to the plain local layout. See
+`scripts/command-center/README.md` § "Durable state" for the exact setup.
 
 ## Guardrails
 
@@ -89,6 +117,9 @@ it's aimed at.
    `scripts/command-center/com.example.command-center.plist` (launchd `KeepAlive`; adapt for
    systemd/Task Scheduler on other platforms). See `scripts/command-center/README.md` for the full
    file-by-file breakdown and the exact install steps.
+5. Optional: add `"state_root"` to `instance.json` and point a dedicated git repo at
+   `CC_STATE_ROOT` if you want generated state (ledger, dashboard, briefing) to survive this
+   machine dying — see `scripts/command-center/README.md` § "Durable state".
 
 ## What it deliberately does not do yet
 

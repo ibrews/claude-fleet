@@ -2,39 +2,42 @@
 # run-loop.sh — always-on Command Center orchestrator loop.
 #
 # Intended host: a dedicated always-on machine in your fleet — run under launchd
-# KeepAlive (com.example.command-center.plist) so a crash restarts the loop; all
-# working state lives in committed files (state_dir/ledger per instance),
-# so a restart rehydrates cleanly — this script itself is stateless.
+# KeepAlive (com.example.command-center.plist; adapt for systemd/Task Scheduler
+# on other platforms) so a crash restarts the loop; this script itself is
+# stateless.
 #
 # A single bad cycle must NOT kill the loop (no `set -e` around the python
 # call) — log the failure and keep going; that's what the ledger is for.
 #
-# Generated state (ledger, notified.json, dashboard/index.html, HALT) is
-# LOCAL to the machine running the loop — deliberately untracked (see
-# .gitignore entries), NOT committed or pushed. Auto-pushing to the KB's
-# shared master every cycle would itself be the push_shared_or_main RED
-# action policy.json forbids the orchestrator from taking autonomously —
-# an early draft of this script did exactly that and was caught and fixed
-# before install. Local files + launchd KeepAlive is sufficient for
-# restart durability; publishing the dashboard is a separate, deliberate
-# step once you've set up hosting for it (note: GitHub Pages requires a paid
-# plan for private repos — a public repo, or Cloudflare Pages/Workers, are
-# common alternatives if you want it private and free).
+# DURABILITY (v2): all generated state (ledger, notified.json, briefing.json,
+# dashboards, index) can live in a DEDICATED git repo — the STATE_ROOT clone —
+# which this loop pulls before and commits+pushes after every cycle. Nothing
+# is local-only: if this machine dies, a fresh clone of your KB (engine +
+# config) plus a fresh clone of the state repo fully reinstates the command
+# center. If CC_STATE_ROOT isn't a git clone, the loop still runs — it just
+# warns that state isn't being backed up (see sync_state_repo below).
 #
-# Install (some machines require an interactive session for launchd registration
-# on a sandboxed/automated host — see README.md "Install on your always-on host"):
+# Guardrail note: this push is NOT the forbidden push_shared_or_main action —
+# that red rule is about your shared KB/project mains. Committing to the
+# orchestrator's OWN dedicated state repo is a green action (see policy.json's
+# commit_state_branch). A HALT file pushed to the state repo from ANY machine
+# (or the GitHub web editor) stops dispatch on the next cycle — a remote kill
+# switch.
+#
+# Install (some hosts require an interactive session for launchd/systemd
+# registration on a sandboxed/automated user — see README.md "Install on your
+# always-on host"):
 #   cp com.example.command-center.plist ~/Library/LaunchAgents/
-#   # edit __KB_ROOT__ / __INSTANCE__ placeholders first
+#   # edit the placeholder paths first
 #   launchctl load ~/Library/LaunchAgents/com.example.command-center.plist
 
 set -uo pipefail
 
 KB_ROOT="${KB_ROOT:-$HOME/knowledge}"
+STATE_ROOT="${CC_STATE_ROOT:-$HOME/command-center-state}"
 # No project-specific default here on purpose — this script is copied verbatim
-# into every fork (see README.md "Forking for a new project"). A silent
-# fallback to your project's instance.json would either run against the wrong
-# project's state or fail confusingly on a fork that doesn't have it. Require
-# the caller (the launchd plist, or you) to say which instance explicitly.
+# into every fork. A silent fallback would run against the wrong project's
+# state or fail confusingly. Require the caller to say which instance.
 if [ -z "${CC_INSTANCE:-}" ]; then
   echo "[run-loop] FATAL: CC_INSTANCE is not set — point it at your project's instance.json" >&2
   echo "  e.g. CC_INSTANCE=\$KB_ROOT/projects/<your-project>/command-center/instance.json" >&2
@@ -44,12 +47,27 @@ INSTANCE="$CC_INSTANCE"
 ENGINE_DIR="$KB_ROOT/departments/engineering/command-center"
 SLEEP_SECONDS="${CC_CYCLE_SECONDS:-1800}"   # matches policy.json's cycle_interval_seconds default
 
-echo "[run-loop] starting — instance=$INSTANCE interval=${SLEEP_SECONDS}s"
+echo "[run-loop] starting — instance=$INSTANCE state_root=$STATE_ROOT interval=${SLEEP_SECONDS}s"
+
+sync_state_repo() {  # $1 = pull|push
+  [ -d "$STATE_ROOT/.git" ] || { echo "[run-loop] WARNING: $STATE_ROOT is not a git clone — state is NOT being backed up"; return 0; }
+  if [ "$1" = "pull" ]; then
+    git -C "$STATE_ROOT" pull --rebase --quiet || echo "[run-loop] WARNING: state repo pull failed"
+  else
+    git -C "$STATE_ROOT" add -A
+    if ! git -C "$STATE_ROOT" diff --cached --quiet; then
+      git -C "$STATE_ROOT" commit -q -m "cycle: $(date -u +%Y-%m-%dT%H:%M:%SZ) ($(hostname -s))" \
+        && git -C "$STATE_ROOT" push --quiet || echo "[run-loop] WARNING: state repo push failed — will retry next cycle"
+    fi
+  fi
+}
 
 while true; do
-  # Pull first so the loop always reconciles against the latest committed
-  # state (other machines' triggers, session-board updates, HALT files).
-  ( cd "$KB_ROOT" && git pull --rebase --quiet ) || echo "[run-loop] WARNING: git pull failed, reconciling against local state"
+  # Pull both repos so the cycle reconciles the latest committed reality:
+  # KB = other machines' triggers/session-board; state repo = briefing edits,
+  # remote HALT, other machines' cycles.
+  ( cd "$KB_ROOT" && git pull --rebase --quiet ) || echo "[run-loop] WARNING: KB pull failed, reconciling against local state"
+  sync_state_repo pull
 
   if python3 "$ENGINE_DIR/cycle.py" --instance "$INSTANCE"; then
     :
@@ -57,5 +75,6 @@ while true; do
     echo "[run-loop] WARNING: cycle.py exited non-zero — logged, continuing loop (not fatal)"
   fi
 
+  sync_state_repo push
   sleep "$SLEEP_SECONDS"
 done

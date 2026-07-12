@@ -29,7 +29,8 @@
 
   "budget": {
     "max_concurrent_workers": 3,
-    "max_cycles_per_day": 48,
+    "max_cycles_per_day": 96,
+    "_note_max_cycles": "Safety ceiling, ~2x the normal rate. At cycle_interval_seconds=1800 the loop runs 48 cycles/day, i.e. steady-state 50% budget. This was 48 originally — exactly equal to the daily cycle count, so the budget guardrail would have false-alarmed at 100% every single day. Caught during a v2 review, before an always-on install.",
     "warn_threshold_pct": 80,
     "stop_threshold_pct": 100,
     "cycle_interval_seconds": 1800

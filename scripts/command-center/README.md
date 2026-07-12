@@ -6,8 +6,20 @@ rebuilding it. Full design + rationale:
 [`intelligence/decisions/2026-07-12-command-center-orchestrator.md`](../../../intelligence/decisions/2026-07-12-command-center-orchestrator.md).
 
 This directory is the **generic engine** — it knows nothing about any specific project. Per-project
-state lives in `projects/<name>/command-center/instance.json` (see
+CONFIG lives in `projects/<name>/command-center/instance.json` (see
 `projects/your-project/command-center/` for the first instance).
+
+**v2 — durability + briefing.** All generated state (ledger, notified.json, briefing.json,
+dashboards, fleet index) can now live under a `state_root` — a clone of a dedicated git repo you
+control, pulled/pushed by the loop every cycle, so nothing is local-only and a dead host reinstates
+from two fresh clones (your KB + your state repo). The dashboard is now a **program briefing**, not
+a status mirror: a `briefing.json` narrative layer (north star, per-phase progress bars, topic
+Q&As, unsolved problems, ranked recommendations, checkpoint timeline — AI-authored at checkpoints,
+staleness shown) rendered above the mechanical layer. If you mount the state repo as a static site,
+the root becomes a fleet-wide index of every instance; each project gets its own subpage. A `HALT`
+file at the state-repo ROOT halts every instance — pushed from anywhere (including the GitHub web
+editor), it's a remote kill switch. `state_root` is optional — omit it and the engine falls back to
+the v1 local `state_dir`/`ledger_file` layout.
 
 ## Files
 
@@ -18,11 +30,11 @@ state lives in `projects/<name>/command-center/instance.json` (see
 | `lib/reconcile.py` | Parses `sessions/active/*.md`, `triggers/*.md`, `inbox/*.md` into a state model, filtered to an instance's keywords. |
 | `lib/dispatch.py` | Creates trigger files / bus nudges for green actions. `spawn_worker` is decision-only in v1 — it does NOT launch a real process (see the module docstring for why). Refuses to write a build-shaped trigger with no `prior_art_summary` — see prior-art gate below. |
 | `lib/prior_art.py` | The prior-art gate: `is_build_shaped()` heuristic + `check_trigger_*()`. A declaration gate, not a diligence guarantee — see module docstring. |
-| `lib/dashboard.py` | Renders the state model to a self-contained, dark-mode-aware static `index.html`. |
+| `lib/dashboard.py` | v2: renders the program briefing (briefing.json narrative layer + mechanical layer, collapsible, progress bars, timeline) plus the fleet-wide index page. Self-contained HTML, light+dark. Degrades to mechanical-only if briefing.json is absent. |
 | `lib/interrupt.py` | Evaluates the 5 interrupt conditions (blocked/done/decision/budget/anomaly), dedup'd against a `notified.json` so the same item doesn't re-ping forever. |
 | `lib/ledger.py` | Append-only `orchestrator-log.jsonl` — every dispatch, interrupt, and cycle logged. |
-| `cycle.py` | One full cycle: ingest → reconcile → dispatch → dashboard → interrupt → persist. Checks `HALT` first. |
-| `run-loop.sh` | Always-on wrapper: `git pull`, run one cycle, sleep, repeat. Never auto-pushes (see comments). |
+| `cycle.py` | One full cycle: ingest → reconcile → dispatch → dashboard(+index) → interrupt(+daily digest) → persist. Checks `HALT` first (instance dir, state-repo instance dir, or state-repo root). |
+| `run-loop.sh` | Always-on wrapper: pull KB (+ state repo if configured), run one cycle, commit+push the state repo, sleep, repeat. The state-repo push is the durability mechanism, NOT the forbidden shared-main push — see comments. |
 | `com.example.command-center.plist` | launchd `KeepAlive` template for your always-on host. |
 | `settings.orchestrator.json` | Restricted `settings.json` for any Claude session the orchestrator invokes — hard permission-layer deny on push/merge/deploy/rm. |
 
@@ -47,10 +59,9 @@ current gap (as of this writing: 5 of 25 existing triggers are build-shaped and 
 which is expected — it didn't exist before this).
 
 **Installing the hook fleet-wide is a separate, deliberate step, not done as part of writing this
-code.** `install-fleet-hooks.sh` now copies `prior-art-gate-check.sh` and `merge-settings.js`
-registers it, but actually *running* the installer against a machine's live `~/.claude/settings.json`
-should be a conscious choice (same as any other fleet hook rollout) — not something this session did
-silently to Alex's own config.
+code.** If you wire this into your own fleet hook installer, actually *running* it against a
+machine's live `~/.claude/settings.json` should be a conscious choice (same as any other fleet hook
+rollout) — not something a session does silently to your config.
 
 ## Kill switch
 
@@ -64,6 +75,23 @@ interrupts, but still refreshes the read-only dashboard. Remove the file to resu
 python3 cycle.py --instance ../../../projects/your-project/command-center/instance.json
 python3 cycle.py --instance <path> --dry-run   # logs intended bus sends, doesn't actually send
 ```
+
+## Durable state (optional)
+
+By default (no `state_root` in `instance.json`) generated state stays local under the v1
+`state_dir`/`ledger_file` paths. To make a machine death survivable, add `"state_root":
+"~/command-center-state"` to `instance.json` and point `run-loop.sh` at a git clone there via
+`CC_STATE_ROOT`:
+
+```bash
+git clone <your-own-state-repo-url> ~/command-center-state
+CC_STATE_ROOT=~/command-center-state CC_INSTANCE=<path/to/instance.json> ./run-loop.sh
+```
+
+The loop pulls that repo before each cycle and commits+pushes it after — `state/`, `dashboard/`,
+`briefing.json`, and (at the repo root) `HALT` and the fleet-wide `index.html`. Recovery from a dead
+host is: clone your KB, clone the state repo, start `run-loop.sh` again. If `CC_STATE_ROOT` isn't a
+git clone, the loop still runs fine — it just logs a warning that state isn't being backed up.
 
 ## Install on your always-on host
 
@@ -90,18 +118,19 @@ tail -f /tmp/command-center.log
    `cycle.py`'s caller to loop over multiple instances (not built in v1 — one instance per loop
    process for now, deliberately simple).
 
-## What v1 deliberately does NOT do yet
+## What it deliberately does NOT do yet
 
 - **Does not spawn real worker processes.** `dispatch.decide_spawn()` proves the guardrail/cap math
-  but never calls `subprocess` to launch a headless `claude -p` session. Wiring that is the next
-  concrete step once Alex has seen this decision-only version run for a while — auto-launching
-  sessions against a live project is a real resource/budget commitment worth watching first.
+  but never calls `subprocess` to launch a headless `claude -p` session. Wiring that is a deliberate
+  next step once you've seen this decision-only version run for a while — auto-launching sessions
+  against a live project is a real resource/budget commitment worth watching first.
 - **Does not detect subjective DECISION conditions.** No mechanical heuristic can reliably tell
-  "this needs Alex's judgment" from frontmatter. `interrupt.py` exposes the condition but nothing
+  "this needs your judgment" from frontmatter. `interrupt.py` exposes the condition but nothing
   currently writes it — a future richer reconcile pass, or a worker explicitly flagging its own
   ambiguity, would populate this.
-- **Does not publish the dashboard.** Renders locally; hosting it needs a new private GitHub repo
-  with Pages enabled (a repo-creation decision, not something to do silently mid-cycle).
-- **Does not auto-commit/push its own state to the KB.** Generated state is gitignored and local to
-  the running machine — see the `.gitignore` entry and `run-loop.sh`'s comments for why an earlier
-  draft that did this was wrong.
+- **Does not auto-publish the dashboard.** It generates a self-contained static `index.html`;
+  hosting it (GitHub Pages, Cloudflare Pages, or the state repo's own static host) is your call —
+  note a *private* repo's Pages requires a paid GitHub plan (Pro/Team/Enterprise).
+- **Does not auto-commit/push to your KB.** Generated state targets `state_root` (a repo you
+  designate) or stays local under the v1 fallback — never your KB's shared branch. See
+  `run-loop.sh`'s comments for why an earlier draft that auto-pushed to a shared branch was wrong.
