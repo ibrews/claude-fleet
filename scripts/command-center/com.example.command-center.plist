@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.command-center</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__KB_ROOT__/departments/engineering/command-center/run-loop.sh</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+        <key>KB_ROOT</key>
+        <string>__KB_ROOT__</string>
+        <key>CC_INSTANCE</key>
+        <string>__INSTANCE_JSON_PATH__</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>__KB_ROOT__/departments/engineering/command-center</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/command-center.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/command-center.err</string>
+</dict>
+</plist>

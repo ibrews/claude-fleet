@@ -66,6 +66,7 @@ The `~/.claude/` directory is Claude Code's internal config directory. Accessing
 - **Route tasks to the cheapest model.** A tiered routing system sends mechanical tasks to local Ollama models, research/drafting to Gemini 2.5 Flash or NVIDIA NIM, and reserves Claude for judgment and orchestration.
 - **Coordinate concurrent sessions.** A lightweight session board and inbox claim protocol prevent multiple machines from stepping on each other.
 - **Message a live session in real time.** The session bus lets one machine tap another's session on the shoulder mid-run — no waiting for the next session start, zero token cost while idle. See [docs/16-session-bus.md](docs/16-session-bus.md).
+- **Run a persistent orchestrator for a large multi-session project.** The Command Center reconciles state across every worker, dispatches new work under a green/yellow/red guardrail policy, gates new builds behind a prior-art check, and pings you only when something's actually blocked, done, or needs a decision. See [docs/17-command-center.md](docs/17-command-center.md).
 
 ## Components
 
@@ -76,12 +77,13 @@ The `~/.claude/` directory is Claude Code's internal config directory. Accessing
 | Telegram notifications | Outbound "task done / needs you" pings from every machine (fleet-wide) |
 | `/remote-control` (built-in) | Native mobile app access to any live session — per-session, zero config |
 | Telegram channel plugin (optional) | Message-driven remote session, single machine fleet-wide — see [docs/06-telegram-bot.md](docs/06-telegram-bot.md) |
+| Command Center (optional) | A persistent, guardrailed orchestrator loop for a large multi-session project — see [docs/17-command-center.md](docs/17-command-center.md) |
 
 ## What This Is NOT
 
 - Not a CI/CD system. There's no pipeline — machines work autonomously.
 - Not a cloud orchestration tool. These are your physical machines, connected peer-to-peer.
-- Not dependent on a central server. The git repo is the only required shared resource. The optional [Control Center](docs/11-control-center.md) adds a centralized dashboard for fleet-wide visibility and instant task dispatch, and the optional [Session Bus](docs/16-session-bus.md) adds real-time session-to-session messaging (one small process, zero npm dependencies) — but the core inbox system works without either.
+- Not dependent on a central server. The git repo is the only required shared resource. The optional [Control Center](docs/11-control-center.md) adds a centralized dashboard for fleet-wide visibility and instant task dispatch, the optional [Session Bus](docs/16-session-bus.md) adds real-time session-to-session messaging (one small process, zero npm dependencies), and the optional [Command Center](docs/17-command-center.md) adds a standing orchestrator loop for one large project — but the core inbox system works without any of them.
 
 ## Prerequisites
 

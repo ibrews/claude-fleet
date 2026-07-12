@@ -1,0 +1,54 @@
+{
+  "_comment": "Guardrail + budget policy for the Command Center orchestrator. JSON, not YAML: stdlib-only parsing (json module), matching the fleet_bus.py 'pure stdlib, runs on every fleet machine' convention. Reviewable by Alex; the loop reads this every cycle, never hardcodes these numbers in code.",
+
+  "action_classes": {
+    "green": [
+      "read_state",
+      "kb_search",
+      "dispatch_trigger",
+      "bus_nudge_worker",
+      "regen_dashboard",
+      "commit_state_branch",
+      "spawn_worker"
+    ],
+    "yellow": [
+      "open_pr",
+      "write_outside_command_center_dir"
+    ],
+    "red": [
+      "push_shared_or_main",
+      "merge",
+      "deploy",
+      "delete",
+      "spawn_beyond_cap",
+      "exceed_budget"
+    ]
+  },
+
+  "_note_spawn_worker": "spawn_worker is green ONLY while under concurrency_cap AND under the budget warn threshold below — guardrail.py enforces this, it is not a blanket green. Exceeding either reclassifies the same action as spawn_beyond_cap (red).",
+
+  "budget": {
+    "max_concurrent_workers": 3,
+    "max_cycles_per_day": 48,
+    "warn_threshold_pct": 80,
+    "stop_threshold_pct": 100,
+    "cycle_interval_seconds": 1800
+  },
+
+  "interrupt_conditions": [
+    "blocked",
+    "done",
+    "decision",
+    "budget",
+    "anomaly"
+  ],
+
+  "digest": {
+    "enabled": true,
+    "times_utc": ["13:00"]
+  },
+
+  "halt_file": "HALT",
+
+  "denied_permissions_note": "Enforced at the settings.json permission layer for the orchestrator's own Claude session, see ../settings.orchestrator.json — this policy file governs the deterministic loop's own action classification, the settings.json is the hard technical backstop for anything that DOES invoke Claude."
+}

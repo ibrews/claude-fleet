@@ -1,0 +1,37 @@
+{
+  "_comment": "Restricted settings.json for any Claude Code session invoked BY the Command Center orchestrator (e.g. a future scoped `claude -p` call for decision-framing or digest prose — not used by v1's deterministic cycle.py, which needs no Claude session at all). This is the hard technical backstop for the red guardrails in policy.json: deny at the permission layer, don't rely on the model choosing not to. Copy into that session's .claude/settings.json (or settings.local.json) verbatim; do not weaken the deny list without updating intelligence/decisions/2026-07-12-command-center-orchestrator.md first.",
+
+  "permissions": {
+    "allow": [
+      "Read(//Users/alex/knowledge/**)",
+      "Bash(git pull:*)",
+      "Bash(git log:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(python3 */command-center/*)",
+      "Bash(python3 */fleet-tools/fleet_bus.py*)",
+      "Bash(python3 */fleet-tools/kb-search*)",
+      "Bash(*/session-board.sh*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(git push origin main*)",
+      "Bash(git push origin master*)",
+      "Bash(gh pr merge:*)",
+      "Bash(rm:*)",
+      "Bash(rm -rf:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(wrangler deploy:*)",
+      "Bash(wrangler publish:*)",
+      "Bash(xcrun altool*)",
+      "Bash(fastlane*)",
+      "Bash(gh repo delete:*)",
+      "Bash(npm publish:*)",
+      "Bash(*deploy*)"
+    ]
+  },
+
+  "_note": "The allow list is intentionally narrow (read + reconcile + bus + kb-search) rather than broad-with-carve-outs — v1 of this orchestrator dispatches via trigger files and bus messages, it does not edit project source. If a later version needs to edit code directly, that's a deliberate scope change requiring its own guardrail review, not an allow-list addition made in passing."
+}
