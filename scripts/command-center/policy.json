@@ -1,5 +1,5 @@
 {
-  "_comment": "Guardrail + budget policy for the Command Center orchestrator. JSON, not YAML: stdlib-only parsing (json module), matching the fleet_bus.py 'pure stdlib, runs on every fleet machine' convention. Reviewable by Alex; the loop reads this every cycle, never hardcodes these numbers in code.",
+  "_comment": "Guardrail + budget policy for the Command Center orchestrator. JSON, not YAML: stdlib-only parsing (json module), matching the fleet_bus.py 'pure stdlib, runs on every fleet machine' convention. Human-reviewable; the loop reads this every cycle, never hardcodes these numbers in code.",
 
   "action_classes": {
     "green": [

@@ -2,8 +2,8 @@
 
 A persistent orchestrator for large, multi-session AI projects. Composes existing fleet
 infrastructure (session-board, triggers/inbox, fleet-bus, kb-search + technique graph) rather than
-rebuilding it. Full design + rationale:
-[`intelligence/decisions/2026-07-12-command-center-orchestrator.md`](../../../intelligence/decisions/2026-07-12-command-center-orchestrator.md).
+rebuilding it. See [`docs/17-command-center.md`](../../docs/17-command-center.md) for the full
+design + rationale.
 
 This directory is the **generic engine** — it knows nothing about any specific project. Per-project
 CONFIG lives in `projects/<name>/command-center/instance.json` (see
