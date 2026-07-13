@@ -27,6 +27,12 @@ import html
 import json
 import os
 import time
+from datetime import datetime, timezone as dt_timezone
+try:
+    from zoneinfo import ZoneInfo
+    _ET = ZoneInfo("America/New_York")
+except Exception:  # pragma: no cover — stdlib since 3.9, but degrade rather than crash a dashboard render
+    _ET = None
 
 CSS = """
 :root{
@@ -224,6 +230,51 @@ def _human_action_queue_html(b):
                 open_=True, count=len(items))
 
 
+def _now_iso():
+    return datetime.now(dt_timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _fmt_et(iso_utc):
+    """Format a UTC ISO timestamp in America/New_York (your org is NYC-based)
+    — correctly shows EDT or EST depending on the date, never hardcoded.
+    Falls back to the raw UTC string if zoneinfo/tzdata isn't available."""
+    if not _ET:
+        return iso_utc.replace("T", " ").replace("Z", " UTC")
+    try:
+        dt = datetime.strptime(iso_utc, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt_timezone.utc)
+        return dt.astimezone(_ET).strftime("%Y-%m-%d %-I:%M %p %Z")
+    except Exception:
+        return iso_utc.replace("T", " ").replace("Z", " UTC")
+
+
+def _ts_span(iso_utc):
+    """A <span data-utc="..."> whose text is the ET-rendered fallback — the
+    inline script at the bottom of the page upgrades it to the VIEWER's own
+    local time via the browser's Intl/Date API when JS runs (the ideal case:
+    a NYC-based team + remote/traveling viewers each see their own clock).
+    ET is the honest no-JS fallback per the operator's ask ('local, else EST — Agile
+    Lens is NYC')."""
+    return f'<span class="tzspan" data-utc="{_e(iso_utc)}">{_e(_fmt_et(iso_utc))}</span>'
+
+
+_TZ_UPGRADE_SCRIPT = """<script>
+(function(){
+  var els = document.querySelectorAll('[data-utc]');
+  for (var i = 0; i < els.length; i++) {
+    var el = els[i], iso = el.getAttribute('data-utc');
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) continue;
+      el.textContent = d.toLocaleString(undefined, {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
+      });
+    } catch (e) {}
+  }
+})();
+</script>"""
+
+
 def _briefing_age_days(briefing):
     try:
         t = time.strptime(briefing["updated_at"][:10], "%Y-%m-%d")
@@ -233,7 +284,7 @@ def _briefing_age_days(briefing):
 
 
 def render(state, briefing, ledger_summary):
-    generated = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())
+    generated_iso = _now_iso()
     b = briefing or {}
     name = state["instance"]
 
@@ -244,14 +295,16 @@ def render(state, briefing, ledger_summary):
         title_html = f'{parts[0]} <span class="b">{parts[1]}</span>'
     age = _briefing_age_days(b)
     stale_chip = f'<span class="stale">briefing {age}d old — may lag reality</span>' if (age is not None and age > 3) else ""
+    briefing_ts = b.get("updated_at", "")
+    briefing_when = _ts_span(briefing_ts) if briefing_ts else _e(briefing_ts)
     mast = f"""
 <header class="mast"><div>
   <p class="kicker">Command Center · Program Briefing</p>
   <h1>{title_html}</h1>
   {f'<p class="northstar">{_e(b.get("north_star"))}</p>' if b.get("north_star") else ""}
 </div><div class="mast-meta">
-  <div class="now">live state {generated}</div>
-  {f'<div>briefing as of {_e(b.get("updated_at","")[:10])}{stale_chip}</div>' if b else '<div>no briefing yet — mechanical view only</div>'}
+  <div class="now">live state {_ts_span(generated_iso)}</div>
+  {f'<div>briefing as of {briefing_when}{stale_chip}</div>' if b else '<div>no briefing yet — mechanical view only</div>'}
   {f'<div class="pulse"><span class="dot"></span> live edge: {_e(b.get("live_edge"))}</div>' if b.get("live_edge") else ""}
 </div></header>"""
 
@@ -436,24 +489,26 @@ def render(state, briefing, ledger_summary):
 {recs_html}{phases_html}{topics_html}{problems_html}{timeline_html}{mech_html}{links_html}
 <footer><span>{_e(name)} — Command Center · <a href="../../index.html">all projects</a></span>
 <span>briefing: AI-authored at checkpoints · live state: every cycle · {_e(ledger_summary)}</span></footer>
-</div></body></html>"""
+</div>{_TZ_UPGRADE_SCRIPT}</body></html>"""
 
 
 def render_index(instances):
     """The /command-center landing page: every project that has a command center."""
-    generated = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())
+    generated_iso = _now_iso()
     cards = ""
     for inst in instances:
         b = inst.get("briefing") or {}
         pr = b.get("progress") or {}
         pct = pr.get("to_first_show_pct")
+        briefing_ts = b.get("updated_at", "")
+        briefing_when = _ts_span(briefing_ts) if briefing_ts else "—"
         cards += f"""
 <a class="icard" href="{_e(inst["name"])}/dashboard/index.html">
   <h2>{_e(inst["name"].replace("-", " ").title())}</h2>
   <p class="desc">{_e(inst.get("description") or b.get("north_star") or "No description yet.")}</p>
   {f'<div class="bar live"><i style="width:{pct}%"></i></div><div class="bar-lbl">{pct}% to first-show milestone</div>' if pct is not None else ""}
   {f'<div class="pulse" style="margin-top:12px"><span class="dot"></span> {_e(b.get("live_edge"))}</div>' if b.get("live_edge") else ""}
-  <div class="meta">briefing {_e(b.get("updated_at", "—")[:10])} · {inst.get("workers", 0)} tracked workers</div>
+  <div class="meta">briefing {briefing_when} · {inst.get("workers", 0)} tracked workers</div>
 </a>"""
     if not cards:
         cards = '<div class="panel"><p class="sub">No instances found. Add projects/&lt;name&gt;/command-center/instance.json in the KB.</p></div>'
@@ -465,10 +520,10 @@ def render_index(instances):
   <p class="kicker">your org · Fleet</p>
   <h1>Command <span class="b">Center</span></h1>
   <p class="northstar">Every large multi-session project with an orchestrator, in one place. Each card is a full program briefing — written so you can walk in cold.</p>
-</div><div class="mast-meta"><div class="now">generated {generated}</div></div></header>
+</div><div class="mast-meta"><div class="now">generated {_ts_span(generated_iso)}</div></div></header>
 <div class="card-grid">{cards}</div>
 <footer><span>Command Center · engine: departments/engineering/command-center</span><span>state repo: your-org/command-center-state</span></footer>
-</div></body></html>"""
+</div>{_TZ_UPGRADE_SCRIPT}</body></html>"""
 
 
 def load_briefing(briefing_path):
