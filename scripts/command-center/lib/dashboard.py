@@ -146,10 +146,12 @@ details.topic .a{padding:0 16px 15px;font-size:13px;color:var(--ink-dim);border-
 .stale{display:inline-block;font-family:ui-monospace,monospace;font-size:10.5px;color:var(--blocked);border:1px solid color-mix(in srgb,var(--blocked) 40%,transparent);border-radius:6px;padding:2px 7px;margin-left:8px}
 footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--border-soft);font-family:ui-monospace,monospace;font-size:11px;color:var(--ink-faint);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;margin-top:20px}
-.icard{border:1px solid var(--border);border-radius:14px;background:var(--surface);box-shadow:var(--shadow);padding:20px;display:block;color:inherit;text-decoration:none}
+.icard{border:1px solid var(--border);border-radius:14px;background:var(--surface);box-shadow:var(--shadow);padding:20px;display:block;color:inherit;text-decoration:none;position:relative}
 .icard h2{margin:0 0 6px;font-size:19px;font-weight:750}
 .icard .desc{font-size:13px;color:var(--ink-dim);margin:0 0 12px}
 .icard .meta{font-family:ui-monospace,monospace;font-size:11px;color:var(--ink-faint);margin-top:10px}
+.copylink{position:absolute;top:16px;right:16px;font-family:ui-monospace,monospace;font-size:11px;color:var(--ink-dim);padding:5px 10px;border:1px solid var(--border-soft);border-radius:8px;background:var(--surface);cursor:pointer}
+.copylink:hover{color:var(--ink);border-color:var(--border)}
 .haq-grid{display:grid;gap:16px;margin-top:2px}
 .haq-item{border-left:3px solid var(--amber)}
 .haq-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 8px}
@@ -255,6 +257,33 @@ def _ts_span(iso_utc):
     ET is the honest no-JS fallback per the operator's ask ('local, else EST — Agile
     Lens is NYC')."""
     return f'<span class="tzspan" data-utc="{_e(iso_utc)}">{_e(_fmt_et(iso_utc))}</span>'
+
+
+_COPY_LINK_SCRIPT = """<script>
+function copyCCLink(evt, btn){
+  evt.preventDefault(); evt.stopPropagation();
+  var name = btn.getAttribute('data-cc-name');
+  var url = location.origin + '/#command-center/' + name;
+  var orig = btn.textContent;
+  function ok(){ btn.textContent = 'Copied \\u2713'; setTimeout(function(){ btn.textContent = orig; }, 1500); }
+  function fail(){ btn.textContent = 'Copy failed'; setTimeout(function(){ btn.textContent = orig; }, 1500); }
+  function fallback(){
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      var success = document.execCommand('copy');
+      document.body.removeChild(ta);
+      success ? ok() : fail();
+    } catch (e) { fail(); }
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(ok, fallback);
+  } else {
+    fallback();
+  }
+}
+</script>"""
 
 
 _TZ_UPGRADE_SCRIPT = """<script>
@@ -504,6 +533,7 @@ def render_index(instances):
         briefing_when = _ts_span(briefing_ts) if briefing_ts else "—"
         cards += f"""
 <a class="icard" href="{_e(inst["name"])}/dashboard/index.html">
+  <button class="copylink" type="button" data-cc-name="{_e(inst["name"])}" onclick="copyCCLink(event, this)">🔗 Copy link</button>
   <h2>{_e(inst["name"].replace("-", " ").title())}</h2>
   <p class="desc">{_e(inst.get("description") or b.get("north_star") or "No description yet.")}</p>
   {f'<div class="bar live"><i style="width:{pct}%"></i></div><div class="bar-lbl">{pct}% to first-show milestone</div>' if pct is not None else ""}
@@ -523,7 +553,7 @@ def render_index(instances):
 </div><div class="mast-meta"><div class="now">generated {_ts_span(generated_iso)}</div></div></header>
 <div class="card-grid">{cards}</div>
 <footer><span>Command Center · engine: departments/engineering/command-center</span><span>state repo: your-org/command-center-state</span></footer>
-</div>{_TZ_UPGRADE_SCRIPT}</body></html>"""
+</div>{_TZ_UPGRADE_SCRIPT}{_COPY_LINK_SCRIPT}</body></html>"""
 
 
 def load_briefing(briefing_path):
