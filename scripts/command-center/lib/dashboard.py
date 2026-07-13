@@ -10,14 +10,15 @@ Two content layers, each with its own visible staleness stamp:
   2. MECHANICAL (reconcile.py, regenerated every cycle) — live sessions,
      open/blocked/done triggers, anomalies, inbox items.
 
-Visual language: tungsten-amber + gel-teal on a dark purple-tinted ground,
+Visual language adapted from the operator's "Your Project — Program State" artifact
+(2026-07-12): tungsten-amber + gel-teal on a dark purple-tinted ground,
 monospace kickers, status pills (proven/live/blocked/planned), phase-board
 rows, recommendation callout. Light + dark via prefers-color-scheme AND
 data-theme overrides. Sections are collapsible (<details>) — glanceable
 first, drill-down second.
 
-Also renders the INDEX page listing every instance (for wherever you mount
-the state repo as a static site — see README's "Publishing the dashboard").
+Also renders the INDEX page listing every instance (for the FCC's
+/command-center mount root).
 
 If briefing.json is absent the page degrades to mechanical-only with a hint —
 keeps the engine fork-clean for projects that haven't written a briefing yet.
@@ -143,6 +144,14 @@ footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--border-soft);
 .icard h2{margin:0 0 6px;font-size:19px;font-weight:750}
 .icard .desc{font-size:13px;color:var(--ink-dim);margin:0 0 12px}
 .icard .meta{font-family:ui-monospace,monospace;font-size:11px;color:var(--ink-faint);margin-top:10px}
+.haq-grid{display:grid;gap:16px;margin-top:2px}
+.haq-item{border-left:3px solid var(--amber)}
+.haq-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 8px}
+.haq-head h3{margin:0;font-size:15px;font-weight:700;flex:1;min-width:220px;color:var(--ink)}
+.haq-rank{font-family:ui-monospace,monospace;font-size:12px;color:var(--ink-faint)}
+.haq-why{margin:0 0 10px;font-size:13px;color:var(--ink-dim)}
+.haq-steps{margin:0 0 12px;padding-left:22px;color:var(--ink-dim);font-size:13px;display:grid;gap:6px}
+.haq-cmd{margin:0;background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--ink);overflow-x:auto;white-space:pre-wrap;word-break:break-word}
 @media (max-width:820px){.mast{grid-template-columns:1fr}.mast-meta{text-align:left}.cols,.bigbars{grid-template-columns:1fr}.row{grid-template-columns:26px 1fr}.row>*{grid-column:2}.row .ph-n{grid-column:1}}
 """
 
@@ -162,10 +171,57 @@ def _sec(title, body_html, note="", open_=True, count=None):
     )
 
 
-def _pill(status):
+def _pill(status, label=None):
     cls = status if status in ("proven", "live", "blocked", "planned", "partial") else "planned"
-    label = {"live": "live edge"}.get(status, status)
+    if label is None:
+        label = {"live": "live edge"}.get(status, status)
     return f'<span class="pill {cls}">{_e(label)}</span>'
+
+
+def _haq_badge_bucket(status):
+    # Deterministic, glyph-only mapping — no keyword guessing. "▶" (ready/
+    # actionable now) reads as the "proven" pill bucket (green); "⏳"/"⏸"
+    # (waiting on something else) reads as the "live" pill bucket (amber,
+    # matches --live's amber hue). Anything without a recognized leading
+    # glyph falls back to the neutral "planned" bucket rather than guessing.
+    s = (status or "").strip()
+    if s.startswith("▶"):
+        return "proven"
+    if s.startswith("⏳") or s.startswith("⏸"):
+        return "live"
+    return "planned"
+
+
+def _human_action_queue_html(b):
+    """Render briefing.human_action_queue as a 'Waiting on you' panel.
+
+    Degrades cleanly: absent or item-less human_action_queue renders "" so
+    older briefing.json files (pre-dating this field) show nothing extra.
+    """
+    haq = b.get("human_action_queue") or {}
+    items = haq.get("items") or []
+    if not items:
+        return ""
+    cards = ""
+    for it in sorted(items, key=lambda i: i.get("rank", 99)):
+        status = it.get("status", "")
+        badge = _pill(_haq_badge_bucket(status), label=status)
+        steps = it.get("steps") or []
+        steps_html = (
+            f'<ol class="haq-steps">{"".join(f"<li>{_e(s)}</li>" for s in steps)}</ol>'
+            if steps else ""
+        )
+        cmd = it.get("command")
+        cmd_html = f'<pre class="haq-cmd mono"><code>{_e(cmd)}</code></pre>' if cmd else ""
+        why = f'<p class="haq-why">{_e(it["why"])}</p>' if it.get("why") else ""
+        cards += f"""
+<div class="panel haq-item">
+  <div class="haq-head"><span class="haq-rank">#{_e(it.get("rank", "?"))}</span><h3>{_e(it.get("title"))}</h3>{badge}</div>
+  {why}{steps_html}{cmd_html}
+</div>"""
+    return _sec("Waiting on you", f'<div class="haq-grid">{cards}</div>',
+                note=haq.get("_note", "") or "human-action queue · maintained by the orchestrator",
+                open_=True, count=len(items))
 
 
 def _briefing_age_days(briefing):
@@ -207,7 +263,7 @@ def render(state, briefing, ledger_summary):
     if pr:
         glance += f"""
 <div class="bigbars">
-  <div class="bigbar"><div class="t">To first milestone</div>
+  <div class="bigbar"><div class="t">To first live show (Phase 3)</div>
     <div class="n">{pr.get("to_first_show_pct", 0)}<small>%</small></div>
     <div class="bar live"><i style="width:{pr.get("to_first_show_pct", 0)}%"></i></div>
     <div class="why">{_e(pr.get("to_first_show_note"))}</div></div>
@@ -216,6 +272,9 @@ def render(state, briefing, ledger_summary):
     <div class="bar planned"><i style="width:{pr.get("full_roadmap_pct", 0)}%;background:var(--gel)"></i></div>
     <div class="why">{_e(pr.get("full_roadmap_note"))}</div></div>
 </div>"""
+
+    # ---- waiting on you (human action queue) ----
+    haq_html = _human_action_queue_html(b)
 
     # ---- recommendations ----
     recs_html = ""
@@ -283,23 +342,62 @@ def render(state, briefing, ledger_summary):
 
     # ---- mechanical layer ----
     tw = state.get("tracked_workers", [])
-    status_pill = {"live": "proven", "blocked": "blocked", "trigger open": "live", "no current activity": "planned"}
+    # Maps reconcile.py's per-worker status to a pill CSS bucket. "live" (an
+    # ACTUAL matched, pid-alive, non-stale session) is the only status that may
+    # ever render the "live" bucket — this is the fix for the bug where
+    # "trigger open" (just an open ticket, no live session) was mapped to the
+    # "live" bucket and rendered as a misleading "LIVE EDGE" badge on workers
+    # that were not, in fact, running. Because "live" here comes from the same
+    # sessions_live list the headline counter is built from, a worker can only
+    # ever show live-bucket styling when the counter is non-zero — counter and
+    # roster can no longer contradict each other.
+    status_pill = {"live": "live", "blocked": "blocked", "trigger open": "partial", "no current activity": "planned"}
+    # Human-readable label is the worker's REAL reconciled status text, not the
+    # CSS bucket name — so "trigger open" reads as "ticket open" (honest: a
+    # ticket exists, nobody is live on it) rather than inheriting "live edge"
+    # from whatever bucket it happens to share styling with.
+    status_label = {"live": "live edge", "blocked": "blocked", "trigger open": "ticket open", "no current activity": "idle"}
     tw_items = "".join(
         f'<li><span class="who">{_e(w["repo"])}</span><span class="what"><b>{_e(w["name"])}</b> — {_e(w["note"])} '
-        f'{_pill(status_pill.get(w["status"], "planned"))}</span></li>'
+        f'{_pill(status_pill.get(w["status"], "planned"), label=status_label.get(w["status"], w["status"]))}</span></li>'
         for w in tw
     )
     anomalies = [s for s in state["sessions_stale_or_dead"] if s.get("claim")]
+    live_sessions = state.get("sessions_live", [])
+    orch_active = state.get("orchestrator_dispatched_active", [])
+
+    def _live_who(s):
+        # The master orchestrator session gets a distinct amber "who" chip
+        # instead of blending in as just another machine name — surfacing it
+        # explicitly in the live view, per the accuracy-bug fix.
+        if not s.get("is_master"):
+            return f'<span class="who">{_e(s["machine"])}</span>'
+        style = ("color:var(--amber);border-color:color-mix(in srgb,var(--amber) 30%,transparent);"
+                 "background:color-mix(in srgb,var(--amber) 12%,transparent)")
+        return f'<span class="who" style="{style}">★ master</span>'
+
+    live_items = "".join(
+        f'<li>{_live_who(s)}<span class="what">{_e(s["doing"] or s["slug"])}</span></li>'
+        for s in live_sessions
+    )
+    live_items += "".join(
+        f'<li><span class="who">↳ dispatched</span><span class="what">{_e(t["title"] or t["id"])} '
+        f'<span class="mono" style="color:var(--ink-faint)">({_e(t.get("claimed_by"))})</span></span></li>'
+        for t in orch_active
+    )
     mech_body = f"""
 <div class="stat-strip">
   <span><b>{len(state["triggers_in_flight"])}</b> in flight</span>
   <span><b>{len(state["triggers_blocked"])}</b> blocked</span>
   <span><b>{len(state["triggers_done"])}</b> done recently</span>
-  <span><b>{len(state["sessions_live"])}</b> live sessions</span>
+  <span><b>{len(live_sessions)}</b> live sessions</span>
+  <span><b>{len(orch_active)}</b> orchestrator-dispatched</span>
   <span><b>{len(anomalies)}</b> anomalies</span>
   <span><b>{len(state["inbox_open"])}</b> open inbox items</span>
 </div>
 <div class="cols" style="margin-top:16px">
+  <div class="panel"><h3>Live now</h3><p class="sub">real sessions (pid-alive + fresh heartbeat) · master starred · + orchestrator-dispatched work</p>
+    <ul class="clean">{live_items or '<li><span class="what">no live sessions</span></li>'}</ul></div>
   <div class="panel"><h3>Tracked workers</h3><p class="sub">named roster · cross-referenced against live sessions + triggers</p>
     <ul class="clean">{tw_items or '<li><span class="what">none configured</span></li>'}</ul></div>
   <div class="panel"><h3>Work in flight</h3><p class="sub">open triggers · claimant or target</p>
@@ -334,7 +432,7 @@ def render(state, briefing, ledger_summary):
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{_e(name)} — Command Center</title>
 <style>{CSS}</style></head><body><div class="wrap">
-{mast}{glance}{hint}
+{mast}{glance}{haq_html}{hint}
 {recs_html}{phases_html}{topics_html}{problems_html}{timeline_html}{mech_html}{links_html}
 <footer><span>{_e(name)} — Command Center · <a href="../../index.html">all projects</a></span>
 <span>briefing: AI-authored at checkpoints · live state: every cycle · {_e(ledger_summary)}</span></footer>
@@ -342,7 +440,7 @@ def render(state, briefing, ledger_summary):
 
 
 def render_index(instances):
-    """The state repo's landing page: every project that has a command center."""
+    """The /command-center landing page: every project that has a command center."""
     generated = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())
     cards = ""
     for inst in instances:
@@ -353,23 +451,23 @@ def render_index(instances):
 <a class="icard" href="{_e(inst["name"])}/dashboard/index.html">
   <h2>{_e(inst["name"].replace("-", " ").title())}</h2>
   <p class="desc">{_e(inst.get("description") or b.get("north_star") or "No description yet.")}</p>
-  {f'<div class="bar live"><i style="width:{pct}%"></i></div><div class="bar-lbl">{pct}% to first milestone</div>' if pct is not None else ""}
+  {f'<div class="bar live"><i style="width:{pct}%"></i></div><div class="bar-lbl">{pct}% to first-show milestone</div>' if pct is not None else ""}
   {f'<div class="pulse" style="margin-top:12px"><span class="dot"></span> {_e(b.get("live_edge"))}</div>' if b.get("live_edge") else ""}
   <div class="meta">briefing {_e(b.get("updated_at", "—")[:10])} · {inst.get("workers", 0)} tracked workers</div>
 </a>"""
     if not cards:
-        cards = '<div class="panel"><p class="sub">No instances found. Add projects/&lt;name&gt;/command-center/instance.json in your KB.</p></div>'
+        cards = '<div class="panel"><p class="sub">No instances found. Add projects/&lt;name&gt;/command-center/instance.json in the KB.</p></div>'
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Command Center</title>
 <style>{CSS}</style></head><body><div class="wrap">
 <header class="mast"><div>
-  <p class="kicker">Fleet</p>
+  <p class="kicker">your org · Fleet</p>
   <h1>Command <span class="b">Center</span></h1>
   <p class="northstar">Every large multi-session project with an orchestrator, in one place. Each card is a full program briefing — written so you can walk in cold.</p>
 </div><div class="mast-meta"><div class="now">generated {generated}</div></div></header>
 <div class="card-grid">{cards}</div>
-<footer><span>Command Center · engine: scripts/command-center</span><span>state repo: see README's state_root setup</span></footer>
+<footer><span>Command Center · engine: departments/engineering/command-center</span><span>state repo: your-org/command-center-state</span></footer>
 </div></body></html>"""
 
 
@@ -395,20 +493,3 @@ def write_index(instances, output_path):
     with open(output_path, "w") as f:
         f.write(render_index(instances))
     return output_path
-
-
-if __name__ == "__main__":
-    import sys
-
-    sys.path.insert(0, os.path.dirname(__file__))
-    import reconcile
-
-    kb_root = os.path.expanduser("~/knowledge")
-    instance_path = os.path.join(kb_root, "projects", "your-project", "command-center", "instance.json")
-    with open(instance_path) as f:
-        instance_config = json.load(f)
-    state = reconcile.build_state(kb_root, instance_config)
-    out = write(state, None, "self-test run, 0 cycles logged", "/tmp/cc-dashboard-selftest/index.html")
-    size = os.path.getsize(out)
-    print(f"wrote {out} ({size} bytes)")
-    assert size > 500

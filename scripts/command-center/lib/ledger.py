@@ -10,7 +10,7 @@ Budget accounting note (honest limitation): true token-spend metering
 requires wiring into Claude Code's own usage stats (~/.claude/usage-state.json
 per departments/engineering/hooks/usage-budget-check.sh), which is
 machine-local and not something this stdlib script should assume exists on
-A machine-local budget-tracking hook. v1 tracks CYCLE COUNT against max_cycles_per_day as the budget proxy
+Alpha. v1 tracks CYCLE COUNT against max_cycles_per_day as the budget proxy
 (a hard, always-available number) and leaves real token-based budget wiring
 as an explicit next step — not silently faked as equivalent.
 """

@@ -1,9 +1,9 @@
 {
-  "_comment": "Restricted settings.json for any Claude Code session invoked BY the Command Center orchestrator (e.g. a future scoped `claude -p` call for decision-framing or digest prose — not used by v1's deterministic cycle.py, which needs no Claude session at all). This is the hard technical backstop for the red guardrails in policy.json: deny at the permission layer, don't rely on the model choosing not to. Copy into that session's .claude/settings.json (or settings.local.json) verbatim; do not weaken the deny list without updating intelligence/decisions/2026-07-12-command-center-orchestrator.md first.",
+  "_comment": "Restricted settings.json for any Claude Code session invoked BY the Command Center orchestrator (e.g. a future scoped `claude -p` call for decision-framing or digest prose — not used by v1's deterministic cycle.py, which needs no Claude session at all). This is the hard technical backstop for the red guardrails in policy.json: deny at the permission layer, don't rely on the model choosing not to. Copy into that session's .claude/settings.json (or settings.local.json) verbatim; do not weaken the deny list without updating the command center design doc first.",
 
   "permissions": {
     "allow": [
-      "Read(//Users/alex/knowledge/**)",
+      "Read(//Users/you/knowledge/**)",
       "Bash(git pull:*)",
       "Bash(git log:*)",
       "Bash(git status:*)",

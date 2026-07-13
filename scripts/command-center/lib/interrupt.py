@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Interrupt-Alex logic for the Command Center orchestrator.
+"""Interrupt-the operator logic for the Command Center orchestrator.
 
 Evaluates the 5 interrupt conditions (blocked / done / decision / budget /
 anomaly) against the current state model, but ONLY fires on NEW

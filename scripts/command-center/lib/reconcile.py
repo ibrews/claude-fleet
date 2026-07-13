@@ -54,6 +54,16 @@ def matches_keywords(haystack_fields, body, keywords):
     return any(kw.lower() in haystack_low for kw in keywords)
 
 
+def is_orchestrator_claim(claimed_by):
+    """Deterministic check for 'this trigger is claimed by the instance's own
+    orchestrator/master session' — a plain substring test on the structured
+    claimed_by field (e.g. 'your-project-orchestrator (pensive-hellman-a7a837)'),
+    not a fuzzy heuristic over free text. Used to surface subagent-dispatched
+    work (which never board-registers a session of its own) as active, per
+    the accuracy-bug fix — see command-center-dashboard-accuracy-2026-07-12.md."""
+    return "orchestrator" in (claimed_by or "").lower()
+
+
 def pid_alive(pid_str):
     try:
         pid = int(pid_str)
@@ -93,6 +103,12 @@ def collect_sessions(kb_root, keywords, stale_min=15):
             "heartbeat_age_min": round(age_min, 1) if age_min is not None else None,
             "stale": (age_min is not None and age_min > stale_min),
             "pid_alive": alive,
+            # "orchestrating" is a reserved status value a project's master/orchestrator
+            # session self-sets on the presence board (session-board.sh's `-S` accepts
+            # free text; this project's orchestrator deliberately uses this one value
+            # to mark itself). A literal field check, not text-sniffing "doing" —
+            # deterministic and checkable, per the accuracy-bug fix's requirement.
+            "is_master": fields.get("status") == "orchestrating",
         })
     return out
 
@@ -150,7 +166,17 @@ def match_tracked_workers(tracked_workers, live_sessions, t_in_flight, t_blocked
     implicit in the raw keyword-matched lists. Match is a case-insensitive
     substring check of the worker's name/repo against session 'doing' text
     and trigger titles/files — same tolerance level as the keyword filter
-    elsewhere in this file, not a stricter guarantee."""
+    elsewhere in this file, not a stricter guarantee.
+
+    The MASTER/orchestrator session is deliberately excluded from the live-
+    session candidates here (found during the accuracy-bug fix's own
+    verification, 2026-07-12): its 'doing' text names the umbrella project
+    (e.g. "your-project master orchestrator..."), which substring-matches
+    ANY tracked worker whose `repo` field equals that same project name —
+    a false "live" for work nobody is actually running. The master's own
+    liveness is surfaced separately (dashboard's "Live now" panel, starred);
+    per-worker "live" status must come from a session actually doing THAT
+    worker's task, not the orchestrator merely existing."""
     results = []
     for w in tracked_workers or []:
         needles = [w["name"].lower(), w.get("repo", "").lower()]
@@ -159,7 +185,8 @@ def match_tracked_workers(tracked_workers, live_sessions, t_in_flight, t_blocked
             h = haystack.lower()
             return any(n and n in h for n in needles)
 
-        matched_sessions = [s for s in live_sessions if hits(s["doing"]) or hits(s.get("machine", ""))]
+        worker_sessions = [s for s in live_sessions if not s.get("is_master")]
+        matched_sessions = [s for s in worker_sessions if hits(s["doing"]) or hits(s.get("machine", ""))]
         matched_blocked = [t for t in t_blocked if hits(t["title"]) or hits(t["file"])]
         matched_in_flight = [t for t in t_in_flight if hits(t["title"]) or hits(t["file"])]
 
@@ -195,6 +222,20 @@ def build_state(kb_root, instance_config):
     stale_claims = [s for s in sessions if s["stale"] or not s["pid_alive"]]
     live_sessions = [s for s in sessions if not s["stale"] and s["pid_alive"]]
 
+    # Bug fix (command-center-dashboard-accuracy-2026-07-12): the orchestrator
+    # session and any Agent-subagent workers it dispatches never board-register
+    # their own sessions/active/*.md entry, so they were invisible to
+    # live_sessions even while actively working. The orchestrator's own session
+    # IS counted above once it self-tags with an instance keyword (its is_master
+    # flag then marks it for the live view). Subagent-dispatched work is
+    # reflected here via the trigger it's claimed under — a real, structured
+    # field (claimed_by), not a guess — kept SEPARATE from sessions_live (a
+    # trigger claim is not proof a process is live right now) so this can never
+    # be mistaken for — or silently merged into — the real live-session count.
+    orchestrator_dispatched_active = [
+        t for t in t_in_flight if is_orchestrator_claim(t.get("claimed_by"))
+    ]
+
     tracked_workers = match_tracked_workers(
         instance_config.get("tracked_workers"), live_sessions, t_in_flight, t_blocked
     )
@@ -205,6 +246,7 @@ def build_state(kb_root, instance_config):
         "tracked_workers": tracked_workers,
         "sessions_live": live_sessions,
         "sessions_stale_or_dead": stale_claims,
+        "orchestrator_dispatched_active": orchestrator_dispatched_active,
         "triggers_done": t_done,
         "triggers_in_flight": t_in_flight,
         "triggers_blocked": t_blocked,

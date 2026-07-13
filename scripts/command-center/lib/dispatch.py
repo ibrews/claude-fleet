@@ -95,7 +95,7 @@ def create_trigger(triggers_dir, *, trigger_id, target, title, task, done_criter
 
 
 def bus_nudge(fleet_bus_py, *, to, body, session, policy, to_human=False, dry_run=False):
-    """Sends via fleet_bus.py send. --to human is the interrupt-Alex path."""
+    """Sends via fleet_bus.py send. --to human is the interrupt-the operator path."""
     cls, reason = guardrail.classify("bus_nudge_worker", policy)
     if cls != guardrail.GREEN:
         return cls, None, reason
@@ -153,8 +153,8 @@ if __name__ == "__main__":
     # Prior-art gate: build-shaped + no summary -> refused, no file written.
     with tempfile.TemporaryDirectory() as tmp:
         cls, path, reason = create_trigger(
-            tmp, trigger_id="cc-build-no-priorart", target="fort",
-            title="Build a new groom-conform pipeline for MH_Alex",
+            tmp, trigger_id="cc-build-no-priorart", target="beta",
+            title="Build a new groom-conform pipeline for MH_Character",
             task="Implement a new per-vertex groom conforming solution from scratch.",
             done_criteria="Grooms conform.", instance="selftest", policy=policy,
         )
@@ -166,8 +166,8 @@ if __name__ == "__main__":
     # Same build-shaped task WITH a prior_art summary -> proceeds normally.
     with tempfile.TemporaryDirectory() as tmp:
         cls, path, reason = create_trigger(
-            tmp, trigger_id="cc-build-with-priorart", target="fort",
-            title="Build a new groom-conform pipeline for MH_Alex",
+            tmp, trigger_id="cc-build-with-priorart", target="beta",
+            title="Build a new groom-conform pipeline for MH_Character",
             task="Implement a new per-vertex groom conforming solution from scratch.",
             done_criteria="Grooms conform.", instance="selftest", policy=policy,
             prior_art_summary="kb-search 'groom conform' + techniques-graph MetaHuman section — "

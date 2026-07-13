@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Command Center control agent (command_center_server.py) — the single-writer
+     host-side HTTP service the Desktop MCP proxies to. Runs on Alpha alongside the
+     always-on loop. Bind to Alpha's tailnet IP so only the fleet can reach it;
+     token-gated by ~/.fleet-token. Copy to ~/Library/LaunchAgents/, replace the
+     __KB_ROOT__ / __BIND_IP__ placeholders, then: launchctl load ~/Library/LaunchAgents/com.example.cc-agent.plist -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.cc-agent</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>__KB_ROOT__/departments/engineering/command-center/command_center_server.py</string>
+        <string>serve</string>
+        <string>--port</string>
+        <string>3838</string>
+        <string>--bind</string>
+        <string>__BIND_IP__</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+        <key>KB_ROOT</key>
+        <string>__KB_ROOT__</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>__KB_ROOT__/departments/engineering/command-center</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/cc-agent.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/cc-agent.err</string>
+</dict>
+</plist>

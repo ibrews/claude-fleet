@@ -3,23 +3,20 @@
 dashboard -> interrupt -> persist.
 
 Deliberately a deterministic script, not a `claude -p` invocation, for the
-routine mechanical work (frontmatter parsing, guardrail classification,
-HTML rendering, bus sends) — a checkable failure mode belongs in a script,
-not in a model's judgment. This keeps every cycle cheap (no tokens) and its
-behavior fully auditable from the ledger. The NARRATIVE layer (briefing.json)
-is the deliberate exception: it's AI-authored at project checkpoints by a
+routine mechanical work — per departments/engineering/
+build-tools-that-run-without-ai.md. The NARRATIVE layer (briefing.json) is
+the deliberate exception: it's AI-authored at project checkpoints by a
 session with real context, and this script only *renders* it (with a visible
 staleness stamp), never generates it.
 
-v2: all generated state can live under a STATE ROOT — a dedicated git repo
-(local or remote) separate from your KB checkout, so nothing is local-only
-and a dead host can be reinstated from a fresh clone of it. run-loop.sh
-pulls/pushes that repo around each cycle; this script only reads/writes
-files. Also new in v2: the daily digest is actually wired (it was
-configurable via policy.json's `digest` block but nothing sent it in v1),
-HALT works from the state repo too (= a remote kill switch via a git push
-from anywhere, including the GitHub web editor), and an index page across
-all instances is regenerated each cycle.
+v2 (2026-07-12): all generated state lives under a STATE ROOT — a dedicated
+private git repo (your-org/command-center-state) so nothing is local-only
+and a dead machine can be reinstated from a fresh clone. run-loop.sh pulls/
+pushes that repo around each cycle; this script only reads/writes files.
+Also new in v2: the daily digest is actually wired (it was configured in
+policy.json but nothing sent it — found during the v2 review), HALT works
+from the state repo too (= remote kill switch via a git push from anywhere),
+and an index page across all instances is regenerated each cycle.
 
 Usage:
     python3 cycle.py --instance <path/to/instance.json> [--dry-run] [--session <id>]
@@ -37,6 +34,7 @@ import guardrail  # noqa: E402
 import interrupt  # noqa: E402
 import ledger as ledger_mod  # noqa: E402
 import reconcile  # noqa: E402
+import spawn  # noqa: E402
 
 ENGINE_DIR = os.path.dirname(os.path.abspath(__file__))
 KB_ROOT_DEFAULT = os.path.expanduser("~/knowledge")
@@ -51,8 +49,8 @@ def resolve_paths(instance_config, kb_root):
     - v2: `state_root` (e.g. "~/command-center-state") — state/dashboard/briefing
       derived as <state_root>/<name>/{state,dashboard/index.html,briefing.json}.
     - v1 fallback: explicit `state_dir`/`ledger_file`/`dashboard.output` keys,
-      resolved relative to kb_root. Kept so existing instance.json files that
-      predate `state_root` don't break."""
+      resolved relative to kb_root. Kept so the public template's existing
+      instance.json files don't break."""
     name = instance_config["name"]
     if instance_config.get("state_root"):
         root = os.path.expanduser(instance_config["state_root"])
@@ -126,7 +124,13 @@ def maybe_send_digest(state, seen, ledger_path, policy, fleet_bus_py, session, d
     return {"condition": "digest", "message": body, "classification": cls, "result": reason}
 
 
-def run_cycle(instance_path, *, dry_run=False, session="command-center-orchestrator", kb_root=None):
+def run_cycle(instance_path, *, dry_run=False, session="cc-master", kb_root=None):
+    # session defaults to "cc-master" (v2): interrupt/digest sends go `--to human`
+    # stamped from_session=cc-master, so the operator's Telegram REPLY (tagged #sid=cc-master
+    # by the tg-bus bridge) routes back to the live master bus listener instead of
+    # falling through to whatever session is attached — the fix for the one-way v1
+    # contact surface. Nothing listens as cc-master? The reply falls through exactly
+    # as before, so this is safe even before the master session is deployed.
     kb_root = kb_root or KB_ROOT_DEFAULT
     instance_path = os.path.expanduser(instance_path)
     with open(instance_path) as f:
@@ -143,10 +147,21 @@ def run_cycle(instance_path, *, dry_run=False, session="command-center-orchestra
     halt_path = next((p for p in paths["halt_candidates"] if os.path.exists(p)), None)
     if halt_path:
         result["halted"] = True
-        result["message"] = f"HALT file present at {halt_path} — dispatch skipped, ingest/dashboard still ran"
-        ledger_mod.append(paths["ledger"], {"event": "halt_observed", "halt_path": halt_path})
+        # The kill switch's "terminates spawned children" clause: SIGTERM every
+        # live worker before anything else, so a HALT actually stops in-flight
+        # spawns, not just future dispatch. Never blocks (best-effort kill).
+        killed = spawn.kill_all(paths["instance_state_dir"], paths["ledger"], reason=f"HALT:{halt_path}") \
+            if not dry_run else []
+        result["workers_killed"] = killed
+        result["message"] = (
+            f"HALT file present at {halt_path} — dispatch skipped, ingest/dashboard still ran"
+            + (f"; killed {len(killed)} live worker(s)" if killed else "")
+        )
+        ledger_mod.append(paths["ledger"], {"event": "halt_observed", "halt_path": halt_path,
+                                            "workers_killed": killed})
         state = reconcile.build_state(kb_root, instance_config)
         state["generated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        state["workers"] = spawn.summarize(paths["instance_state_dir"])
         cycles_today = ledger_mod.cycles_today(paths["ledger"])
         dashboard.write(state, briefing, f"{cycles_today} cycles today · HALTED — dispatch paused", paths["dashboard_out"])
         result["state"] = state
@@ -154,9 +169,19 @@ def run_cycle(instance_path, *, dry_run=False, session="command-center-orchestra
 
     os.makedirs(paths["instance_state_dir"], exist_ok=True)
 
+    # 0. Reap spawned workers FIRST — finalize any that exited/overran since last
+    #    cycle so the state model (and the cap) reflect reality this cycle.
+    reaped = spawn.reap(paths["instance_state_dir"], paths["ledger"], policy)
+
     # 1. Ingest + 2. Reconcile
     state = reconcile.build_state(kb_root, instance_config)
     state["generated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    # Fold spawn state into the model so the dashboard + MCP see live workers,
+    # spawnable candidates, and any proposals awaiting the operator's confirmation.
+    state["workers"] = spawn.summarize(paths["instance_state_dir"])
+    state["spawn_candidates"] = spawn.identify_candidates(state, kb_root)
+    state["pending_spawns"] = spawn.load_pending(paths["instance_state_dir"]).get("pending", [])
+    usage = spawn.read_usage_usd(policy)
     ledger_mod.append(paths["ledger"], {
         "event": "reconcile",
         "in_flight": len(state["triggers_in_flight"]),
@@ -164,15 +189,35 @@ def run_cycle(instance_path, *, dry_run=False, session="command-center-orchestra
         "done": len(state["triggers_done"]),
         "live_sessions": len(state["sessions_live"]),
         "anomalies": len([s for s in state["sessions_stale_or_dead"] if s.get("claim")]),
+        "workers_live": state["workers"]["live_count"],
+        "workers_reaped": len(reaped),
+        "spawn_candidates": len(state["spawn_candidates"]),
+        "pending_spawns": len([p for p in state["pending_spawns"] if p.get("status") == "awaiting_confirmation"]),
     })
 
-    # 3. Dispatch — v1 has no autonomous NEW-trigger creation; mechanism proven in dispatch.py.
-    ledger_mod.append(paths["ledger"], {"event": "dispatch", "actions_taken": 0, "note": "no new work identified this cycle"})
+    # 3. Dispatch — spawn LAUNCH is deliberately NOT autonomous while
+    #    policy.spawn.mode == "propose": launches happen only via the Desktop MCP
+    #    spawn_worker tool or an the operator-confirmed proposal (confirm_spawn), both of
+    #    which call spawn.launch_worker directly. The loop surfaces candidates +
+    #    pending proposals (above) but does not launch them here. Flipping mode to
+    #    "auto" (the operator's explicit say-so) is what turns this into autonomous launch.
+    spawn_mode = (policy.get("spawn") or {}).get("mode", "propose")
+    ledger_mod.append(paths["ledger"], {
+        "event": "dispatch", "actions_taken": 0, "spawn_mode": spawn_mode,
+        "note": f"spawn_mode={spawn_mode}; launches gated to MCP/confirmed proposals this cycle",
+    })
 
     # 4. Dashboard (+ fleet-wide index when a state_root exists)
     cycles_today = ledger_mod.cycles_today(paths["ledger"])
     budget_pct = ledger_mod.budget_pct_today(paths["ledger"], policy["budget"]["max_cycles_per_day"])
-    dashboard.write(state, briefing, f"{cycles_today} cycles today · budget {budget_pct}%", paths["dashboard_out"])
+    usd_str = ""
+    if usage and usage.get("spent_today_usd") is not None:
+        usd_str = f" · ${usage['spent_today_usd']:.2f} today"
+    live_workers = state["workers"]["live_count"]
+    worker_str = f" · {live_workers} live worker(s)" if live_workers else ""
+    dashboard.write(state, briefing,
+                    f"{cycles_today} cycles today · budget {budget_pct}%{worker_str}{usd_str}",
+                    paths["dashboard_out"])
     if paths["index_out"]:
         dashboard.write_index(discover_instances(kb_root), paths["index_out"])
 
@@ -201,7 +246,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--instance", required=True)
     ap.add_argument("--dry-run", action="store_true", help="log intended bus sends, don't actually send")
-    ap.add_argument("--session", default="command-center-orchestrator")
+    ap.add_argument("--session", default="cc-master",
+                    help="sender id for --to human sends; cc-master routes Telegram replies to the master listener")
     ap.add_argument("--kb-root", default=None)
     args = ap.parse_args()
 

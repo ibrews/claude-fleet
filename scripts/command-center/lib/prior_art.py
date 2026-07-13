@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Prior-art gate: is this task build-shaped, and if so, was prior art checked?
 
-The re-litigation failure this exists to stop (Alex's own framing): MetaHuman
+The re-litigation failure this exists to stop (the operator's own framing): MetaHuman
 grooms were solved in MetaHumanGodot, full-body motion in ACCVR/UnRealityKit —
-then BOTH re-solved again in Persona Live AND the WebGPU client. A cheap
+then BOTH re-solved again in Your Project AND the WebGPU client. A cheap
 keyword heuristic can't tell whether a REAL search happened, only whether one
 was DECLARED — so this is a gate on declaration, not a guarantee of diligence.
 That's a deliberate, honest limitation: it converts "nobody thought to check"
