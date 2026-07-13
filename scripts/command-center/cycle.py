@@ -181,6 +181,11 @@ def run_cycle(instance_path, *, dry_run=False, session="cc-master", kb_root=None
     state["workers"] = spawn.summarize(paths["instance_state_dir"])
     state["spawn_candidates"] = spawn.identify_candidates(state, kb_root)
     state["pending_spawns"] = spawn.load_pending(paths["instance_state_dir"]).get("pending", [])
+    # DECISION_NEEDED.md lives next to HALT/briefing.json (instance dir, not state/)
+    # — any worker can drop it there when it hits a choice it can't resolve itself.
+    # See interrupt.py's module docstring for why this is explicit, not inferred.
+    decision_needed_path = os.path.join(os.path.dirname(paths["instance_state_dir"]), "DECISION_NEEDED.md")
+    state["decision_needed_file"] = decision_needed_path if os.path.exists(decision_needed_path) else None
     usage = spawn.read_usage_usd(policy)
     ledger_mod.append(paths["ledger"], {
         "event": "reconcile",

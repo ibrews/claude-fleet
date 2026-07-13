@@ -9,13 +9,20 @@ notified, so the same known blocker doesn't re-ping every 30 minutes
 forever. This is the mechanism that keeps the orchestrator from becoming
 just another noisy session.
 
-DECISION is deliberately a stub in v1: detecting "this is a genuinely
-subjective either/or a worker can't resolve" from frontmatter alone isn't
-a mechanical check — it requires judgment. v1 exposes the hook (a
-DECISION_NEEDED.md file in the instance dir that any worker or a future
-richer reconcile pass can write) rather than faking a heuristic that
-would either spam false positives or silently miss real decisions.
+DECISION does not try to infer "this is a genuinely subjective either/or"
+from prose or frontmatter — that classification requires judgment, and a
+keyword/pattern guess would either spam false positives or silently miss
+real decisions (see intelligence/decisions/2026-07-13-command-center-decision-interrupt.md
+for the tradeoff and why an explicit signal won out over a mechanical
+scan). Instead it detects an EXPLICIT, worker-authored DECISION_NEEDED.md
+file in the instance dir (same level as HALT/briefing.json — see
+cycle.py's resolve_paths) — any worker, or a future richer reconcile
+pass, writes it when it hits a choice it can't resolve itself. Dedup is
+by content hash, not id: editing the file (a new question, updated
+options) re-notifies; clearing/deleting it after the operator answers is the
+resolution signal, the same convention as the HALT kill switch.
 """
+import hashlib
 import json
 import os
 import sys
@@ -27,10 +34,15 @@ import ledger as ledger_mod  # noqa: E402
 
 def load_seen(state_dir):
     path = os.path.join(state_dir, "notified.json")
+    default = {"blocked": [], "done": [], "anomaly": [], "budget_thresholds_hit": [], "decision": []}
     if not os.path.exists(path):
-        return {"blocked": [], "done": [], "anomaly": [], "budget_thresholds_hit": []}
+        return default
     with open(path) as f:
-        return json.load(f)
+        data = json.load(f)
+    # Backward-compat: older notified.json files predate the "decision" key.
+    for k, v in default.items():
+        data.setdefault(k, v)
+    return data
 
 
 def save_seen(state_dir, seen):
@@ -75,6 +87,26 @@ def evaluate(state, seen, ledger_path, policy):
                     f'[{state["instance"]}] ANOMALY: {s["machine"]} claims "{s["claim"]}" but {reason} '
                     f'({s["heartbeat_age_min"]}m) — singleton may be free, verify before reclaiming'
                 ),
+            })
+
+    # DECISION — explicit, worker-authored DECISION_NEEDED.md (see module docstring).
+    # Presence alone isn't enough to dedup (the file can be re-edited with a new
+    # question) — hash the content so an unchanged file doesn't re-ping every cycle,
+    # but an edited one (or a fresh file after a prior one was cleared) does.
+    decision_path = state.get("decision_needed_file")
+    if decision_path:
+        with open(decision_path) as f:
+            content = f.read()
+        content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()[:12]
+        if content_hash not in seen["decision"]:
+            seen["decision"].append(content_hash)
+            summary = next(
+                (line.strip().lstrip("#").strip() for line in content.splitlines() if line.strip()),
+                "(see file for details)",
+            )
+            events.append({
+                "condition": "decision",
+                "message": f'[{state["instance"]}] DECISION: {summary} — see {decision_path}',
             })
 
     # BUDGET — 80%/100% cycle-count thresholds, each fires once per day
