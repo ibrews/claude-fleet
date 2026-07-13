@@ -248,16 +248,20 @@ WORKER_CHARTER = (
 
 
 def build_command(*, executor, runner, machine, engine_dir, prompt, worker_id,
-                  instance, trigger_id, prior_art_summary, policy, kb_root=None):
+                  instance, trigger_id, prior_art_summary, policy, kb_root=None, model=None):
     """Return (argv:list[str], shell:bool) for the chosen executor/runner.
-    Pure — constructs the command, launches nothing."""
+    Pure — constructs the command, launches nothing. `model` optionally overrides
+    the executor's default (a claude tier like 'haiku'/'sonnet', or a specific
+    Ollama model like 'llama3.1:8b') — the fleet runs different local LLMs on
+    different machines, so the model can't be one hardcoded value."""
     spawn_cfg = policy.get("spawn") or {}
 
     if executor == "inference":
         runner = runner or spawn_cfg["executors"]["inference"].get("default_runner", "ollama")
         if runner == "ollama":
             ip = _machine_ip(machine or "alpha", kb_root)
-            body = json.dumps({"model": "gemma3:27b", "prompt": prompt, "stream": False})
+            ollama_model = model or spawn_cfg["executors"]["inference"].get("default_ollama_model", "gemma3:27b")
+            body = json.dumps({"model": ollama_model, "prompt": prompt, "stream": False})
             # curl to the fleet Ollama endpoint (fleet/dispatch.md pattern).
             return (["curl", "-s", f"http://{ip}:11434/api/generate", "-d", body], False)
         if runner == "gemini":
@@ -275,7 +279,7 @@ def build_command(*, executor, runner, machine, engine_dir, prompt, worker_id,
 
     if executor == "claude-worker":
         cw = spawn_cfg["executors"]["claude-worker"]
-        model = cw.get("model", "sonnet")
+        model = model or cw.get("model", "sonnet")
         max_turns = str(spawn_cfg.get("max_turns_per_worker", 30))
         perm = cw.get("permission_mode", "acceptEdits")
         settings_path = os.path.join(engine_dir, cw.get("settings_file", "settings.worker.json"))
@@ -325,7 +329,7 @@ def _shq(s):
 def launch_worker(*, task_title, task_text, prior_art_summary, executor, runner=None,
                   machine=None, trigger_id=None, instance, engine_dir, state_dir,
                   ledger_path, policy, confirmed=False, kb_root=None,
-                  dry_run=False, command_override=None):
+                  dry_run=False, command_override=None, model=None):
     """Gate, then actually launch (unless dry_run). Returns a dict:
     {ok, classification, reason, worker (record|None)}. On ok=False nothing is
     launched. command_override (a ready argv) is for tests — it still passes the
@@ -351,7 +355,7 @@ def launch_worker(*, task_title, task_text, prior_art_summary, executor, runner=
         argv, shell = build_command(
             executor=executor, runner=runner, machine=machine, engine_dir=engine_dir,
             prompt=prompt, worker_id=worker_id, instance=instance, trigger_id=trigger_id,
-            prior_art_summary=prior_art_summary, policy=policy, kb_root=kb_root,
+            prior_art_summary=prior_art_summary, policy=policy, kb_root=kb_root, model=model,
         )
 
     record = {

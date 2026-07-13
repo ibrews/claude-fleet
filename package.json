@@ -1,6 +1,6 @@
 {
   "name": "claude-fleet",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Coordinate multiple Claude Code instances across machines via git-based messaging",
   "engines": { "node": ">=14.0.0" },
   "license": "MIT",

@@ -132,6 +132,7 @@ def op_spawn(body):
         task_title=body.get("task_title", ""), task_text=body.get("task_text", ""),
         prior_art_summary=body.get("prior_art", ""), executor=body.get("executor", "claude-worker"),
         runner=body.get("runner"), machine=body.get("machine"), trigger_id=body.get("trigger_id"),
+        model=body.get("model"),
         instance=name, engine_dir=ENGINE_DIR, state_dir=state_dir, ledger_path=ledger,
         policy=policy, kb_root=KB_ROOT,
     )
@@ -156,7 +157,7 @@ def op_spawn(body):
     prop_id = spawn.enqueue_proposal(state_dir, {
         "task_title": common["task_title"], "task_text": common["task_text"],
         "prior_art": common["prior_art_summary"], "executor": common["executor"],
-        "runner": common["runner"], "machine": common["machine"],
+        "runner": common["runner"], "machine": common["machine"], "model": common["model"],
         "trigger_id": common["trigger_id"], "preview_classification": cls,
     })
     return {"status": "proposed", "proposal_id": prop_id, "classification": cls,
@@ -175,6 +176,7 @@ def op_confirm(body):
         task_title=prop.get("task_title", ""), task_text=prop.get("task_text", ""),
         prior_art_summary=prop.get("prior_art", ""), executor=prop.get("executor", "claude-worker"),
         runner=prop.get("runner"), machine=prop.get("machine"), trigger_id=prop.get("trigger_id"),
+        model=prop.get("model"),
         instance=name, engine_dir=ENGINE_DIR, state_dir=state_dir, ledger_path=ledger,
         policy=policy, confirmed=True, kb_root=KB_ROOT,
     )
