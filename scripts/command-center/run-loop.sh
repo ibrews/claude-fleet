@@ -2,31 +2,28 @@
 # run-loop.sh — always-on Command Center orchestrator loop.
 #
 # Intended host: a dedicated always-on machine in your fleet — run under launchd
-# KeepAlive (com.example.command-center.plist; adapt for systemd/Task Scheduler
-# on other platforms) so a crash restarts the loop; this script itself is
-# stateless.
+# KeepAlive (com.example.command-center.plist / com.example... in the public
+# template) so a crash restarts the loop; this script itself is stateless.
 #
 # A single bad cycle must NOT kill the loop (no `set -e` around the python
 # call) — log the failure and keep going; that's what the ledger is for.
 #
-# DURABILITY (v2): all generated state (ledger, notified.json, briefing.json,
-# dashboards, index) can live in a DEDICATED git repo — the STATE_ROOT clone —
-# which this loop pulls before and commits+pushes after every cycle. Nothing
-# is local-only: if this machine dies, a fresh clone of your KB (engine +
-# config) plus a fresh clone of the state repo fully reinstates the command
-# center. If CC_STATE_ROOT isn't a git clone, the loop still runs — it just
-# warns that state isn't being backed up (see sync_state_repo below).
+# DURABILITY (v2, 2026-07-12): all generated state (ledger, notified.json,
+# briefing.json, dashboards, index) lives in a DEDICATED private git repo —
+# the STATE_ROOT clone (your-org/command-center-state internally) — which
+# this loop pulls before and commits+pushes after every cycle. Nothing is
+# local-only: if this machine dies, a fresh clone of the KB (engine+config)
+# plus a fresh clone of the state repo fully reinstates the command center.
 #
 # Guardrail note: this push is NOT the forbidden push_shared_or_main action —
-# that red rule is about your shared KB/project mains. Committing to the
-# orchestrator's OWN dedicated state repo is a green action (see policy.json's
-# commit_state_branch). A HALT file pushed to the state repo from ANY machine
-# (or the GitHub web editor) stops dispatch on the next cycle — a remote kill
-# switch.
+# that red rule is about the shared KB master / project mains. Committing to
+# the orchestrator's OWN dedicated state repo was green in the signed-off
+# design ("commit to its own state branch"); v2 just makes it real. Bonus:
+# a HALT file pushed to the state repo from ANY machine (or github.com)
+# stops dispatch on the next cycle — a remote kill switch.
 #
-# Install (some hosts require an interactive session for launchd/systemd
-# registration on a sandboxed/automated user — see README.md "Install on your
-# always-on host"):
+# Install (some machines require an interactive session for launchd registration
+# on a sandboxed/automated host — see README.md "Install on your always-on host"):
 #   cp com.example.command-center.plist ~/Library/LaunchAgents/
 #   # edit the placeholder paths first
 #   launchctl load ~/Library/LaunchAgents/com.example.command-center.plist

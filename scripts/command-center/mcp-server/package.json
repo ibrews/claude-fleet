@@ -1,0 +1,17 @@
+{
+  "name": "command-center-mcp",
+  "version": "1.0.0",
+  "description": "Talk to the your org Command Center orchestrator from Claude Desktop — state, active work, transcripts, worker messaging, and guardrailed spawn/halt.",
+  "main": "index.mjs",
+  "type": "module",
+  "bin": {
+    "command-center-mcp": "index.mjs"
+  },
+  "keywords": ["claude", "claude-desktop", "mcp", "orchestrator", "command-center", "agile-lens"],
+  "author": "your org",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.23.8"
+  }
+}

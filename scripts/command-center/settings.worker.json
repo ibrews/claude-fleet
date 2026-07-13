@@ -1,0 +1,48 @@
+{
+  "_comment": "Restricted settings.json for a Claude WORKER spawned by the Command Center orchestrator (the claude-worker executor tier in policy.json's spawn.executors). DISTINCT from settings.orchestrator.json: the orchestrator only dispatches and never edits code, whereas a worker DOES the work — it may read, edit/write within its task repo, commit LOCALLY, and run kb-search + fleet_bus to report status back to cc-master. It may NOT push to any branch, merge, deploy, or delete: commit-local-never-push is the v2 side-effect policy the operator signed off (2026-07-12). The master surfaces the worker's local branch for human review + push. This deny list is the hard permission-layer backstop for the 'side-effect safety' guardrail in policy.json — do NOT weaken it without updating the command center design doc first. Spawned headless via `claude -p ... --permission-mode acceptEdits --settings settings.worker.json`: acceptEdits auto-accepts in-repo edits, allow-listed Bash runs, denied Bash is blocked, and any non-listed Bash is treated as denied in headless mode (the worker reports blocked rather than hanging) — verify this empirically with a throwaway before trusting.",
+
+  "permissions": {
+    "allow": [
+      "Read(//Users/**)",
+      "Edit(//Users/**)",
+      "Write(//Users/**)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git branch:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git stash:*)",
+      "Bash(git pull --rebase:*)",
+      "Bash(python3 */fleet-tools/fleet_bus.py*)",
+      "Bash(python3 */fleet-tools/kb-search*)",
+      "Bash(*/session-board.sh*)",
+      "Bash(*/inbox-claim.sh*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(git checkout master:*)",
+      "Bash(git checkout main:*)",
+      "Bash(rm:*)",
+      "Bash(rm -rf:*)",
+      "Bash(rmdir:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh repo delete:*)",
+      "Bash(gh release:*)",
+      "Bash(wrangler deploy:*)",
+      "Bash(wrangler publish:*)",
+      "Bash(npm publish:*)",
+      "Bash(xcrun altool*)",
+      "Bash(fastlane*)",
+      "Bash(*deploy*)"
+    ]
+  },
+
+  "_note": "The allow list intentionally covers only what an in-repo worker needs (read/edit/write, local git, status reporting via fleet_bus/session-board/inbox-claim). It does NOT include `git push` in any form — a worker that has finished its work commits locally and bus-messages cc-master with its branch name; a human (or a later, separately-reviewed policy change) does the push. If a future spawn tier needs to push its own feature branch, that is a deliberate scope change (yellow: act-then-notify) requiring its own guardrail review, not an allow-list addition made in passing."
+}

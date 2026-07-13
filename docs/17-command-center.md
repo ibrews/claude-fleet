@@ -121,11 +121,40 @@ it's aimed at.
    `CC_STATE_ROOT` if you want generated state (ledger, dashboard, briefing) to survive this
    machine dying — see `scripts/command-center/README.md` § "Durable state".
 
+## Real worker spawning (v3, guardrailed, off by default)
+
+`scripts/command-center/lib/spawn.py` can launch, reap, and kill real workers — but only through a
+fail-closed gate stack, and **it starts in `propose` mode where nothing launches without your
+explicit confirm.** Every launch must clear all of: mode gate → prior-art gate → concurrency cap →
+cycle + real-$ budget → daily spawn cap → HALT (which also SIGTERMs live children). Two executor
+tiers, cheapest-first: an `inference` tier (Ollama/Gemini/NIM — no agent-model budget, for
+summarize/classify/draft subtasks) and a `claude-worker` tier (a headless `claude -p` locally or
+over `ssh`, under `settings.worker.json` which denies all push/merge/deploy/delete —
+*commit-local-never-push*, so a worker's output is a local branch you review, never a surprise push).
+
+Flipping `spawn.mode` from `"propose"` to `"auto"` is the live-autonomy switch — a deliberate,
+manual `policy.json` edit, never a code default. Ship decision-only first, watch propose-mode
+proposals for a while, then graduate.
+
+## Talking to it (v3)
+
+Three surfaces onto one orchestrator:
+
+- **`command_center_server.py`** — a small stdlib HTTP control agent that runs on the *same* host as
+  the loop (spawning and reaping must be co-located: a worker's pid liveness is only checkable on the
+  host that launched it). Token-gated (`~/.fleet-token` / `X-Fleet-Token`), tailnet-bound. Endpoints:
+  `/cc/state`, `/cc/spawn`, `/cc/confirm`, `/cc/reject`, `/cc/halt`, `/cc/resume`, `/cc/message`.
+- **`mcp-server/`** — a thin Claude Desktop MCP connector (`index.mjs`) that proxies to the control
+  agent, so you can ask "what's the state of X?" / "spawn a worker to do Y" / "confirm that" from a
+  chat window. Register it in `claude_desktop_config.json` (see `mcp-server/package.json`).
+- **`master/`** — an optional always-on `cc-master` session (system prompt + loop wrapper) that arms
+  a fleet-bus listener, so Telegram replies route to one persistent brain when you're mobile.
+
+All three are read-only-until-you-say-go: they surface state and *propose*, and only launch on an
+explicit confirm while `spawn.mode` is `propose`.
+
 ## What it deliberately does not do yet
 
-- **Doesn't launch real worker processes.** Spawning is guardrail-gated and logged (`WOULD SPAWN` /
-  `REFUSED`, with the cap math shown), but wiring an actual `claude -p` subprocess launch is left as
-  your next step — worth watching the decision-only version run for a while first.
 - **Doesn't detect subjective decisions mechanically.** No heuristic can reliably tell "this needs a
   human's judgment" from trigger text. The condition exists in the interrupt logic; something has to
   populate it (a worker flagging its own ambiguity, or a richer reconciliation pass you add).

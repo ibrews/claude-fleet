@@ -1,5 +1,5 @@
 {
-  "_comment": "Guardrail + budget policy for the Command Center orchestrator. JSON, not YAML: stdlib-only parsing (json module), matching the fleet_bus.py 'pure stdlib, runs on every fleet machine' convention. Human-reviewable; the loop reads this every cycle, never hardcodes these numbers in code.",
+  "_comment": "Guardrail + budget policy for the Command Center orchestrator. JSON, not YAML: stdlib-only parsing (json module), matching the fleet_bus.py 'pure stdlib, runs on every fleet machine' convention. Reviewable by the operator; the loop reads this every cycle, never hardcodes these numbers in code.",
 
   "action_classes": {
     "green": [
@@ -30,10 +30,47 @@
   "budget": {
     "max_concurrent_workers": 3,
     "max_cycles_per_day": 96,
-    "_note_max_cycles": "Safety ceiling, ~2x the normal rate. At cycle_interval_seconds=1800 the loop runs 48 cycles/day, i.e. steady-state 50% budget. This was 48 originally — exactly equal to the daily cycle count, so the budget guardrail would have false-alarmed at 100% every single day. Caught during a v2 review, before an always-on install.",
+    "_note_max_cycles": "Safety ceiling, ~2x the normal rate. At cycle_interval_seconds=1800 the loop runs 48 cycles/day, i.e. steady-state 50% budget. This was 48 originally — exactly equal to the daily cycle count, so the budget guardrail would have false-alarmed at 100% every single day (caught 2026-07-12 during the v2 review, before the always-on install).",
     "warn_threshold_pct": 80,
     "stop_threshold_pct": 100,
     "cycle_interval_seconds": 1800
+  },
+
+  "spawn": {
+    "_comment": "v2 (2026-07-12): real worker spawning, guardrailed. Every launch clears ALL of: mode gate, concurrency cap (budget.max_concurrent_workers), max_spawns_per_day, prior-art gate, budget ceiling, HALT — or it is refused (fail-closed). lib/spawn.py enforces; nothing here is hardcoded in code.",
+
+    "mode": "propose",
+    "_note_mode": "propose = every spawn is proposed to the operator (via cc-master --to human) and waits for his explicit 'go' before launching; auto = green spawns launch within caps without per-spawn gating. Graduate propose->auto ONLY on the operator's explicit say-so — mirrors how v1 shipped decision-only first. Flipping this to 'auto' is the live-autonomy switch; do not flip it in a build session.",
+
+    "max_spawns_per_day": 12,
+    "_note_max_spawns_per_day": "Counted from ledger 'spawn' rows with today's date. A hard daily launch ceiling independent of concurrency (a worker can finish and free a slot many times/day).",
+
+    "max_turns_per_worker": 30,
+    "timeout_seconds_per_worker": 3600,
+    "_note_worker_limits": "Per-worker hard caps: --max-turns bounds tool-loop length, timeout SIGTERMs a worker that overruns. These are the always-available proxy for token budget (real $ metering below is best-effort/machine-local).",
+
+    "executors": {
+      "inference": {
+        "_comment": "Cheap, no Claude budget, no tool loop — summarize/classify/extract/draft/triage subtasks. Routed per fleet/dispatch.md (Ollama :11434 fleet-wide, Gemini CLI, NVIDIA NIM). Fleet-first: prefer this tier for any task it can do well enough.",
+        "runners": ["ollama", "gemini", "nim"],
+        "default_runner": "ollama"
+      },
+      "claude-worker": {
+        "_comment": "Agentic build/debug/multi-tool work — Sonnet per the operator's model-routing rules. Runs local as a subprocess on the host, or via `ssh <machine> claude -p` for a repo-owning machine (both, per-task — the operator 2026-07-12). commit-local-never-push: the worker settings.json denies all push/merge/deploy/delete; the master surfaces the worker's local branch for human review.",
+        "model": "sonnet",
+        "settings_file": "settings.worker.json",
+        "permission_mode": "acceptEdits",
+        "allow_ssh": true,
+        "allowed_machines": ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "your-laptop"]
+      }
+    },
+
+    "budget_usd": {
+      "_comment": "Real $ ceiling, best-effort. The proxy caps above (max_spawns_per_day, max_turns, timeout, max_concurrent_workers) are the always-available HARD ceiling. usage_state_path is read when present on the host for a true spend number surfaced on the dashboard; it is machine-local and absent on some hosts, in which case the proxy caps alone govern — never silently faked as equivalent (same honesty as ledger.py's cycle-count budget note).",
+      "per_cycle": 5.0,
+      "per_day": 40.0,
+      "usage_state_path": "~/.claude/usage-state.json"
+    }
   },
 
   "interrupt_conditions": [
