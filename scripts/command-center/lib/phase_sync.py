@@ -62,6 +62,7 @@ import json
 import os
 import re
 import sys
+import time
 
 # Every phase MUST carry these — matches briefing.json's phases schema exactly.
 # subtitle/state are optional (render as blank) but recommended.
@@ -175,6 +176,54 @@ def compute_progress(phases, progress_meta):
         "full_roadmap_pct": _weighted_avg(phases),
         "full_roadmap_note": meta.get("full_roadmap_note") or DEFAULT_FULL_ROADMAP_NOTE,
     }
+
+
+# How old the phase board can get before the dashboard nudges someone to re-check it.
+STALE_PHASE_DAYS = 5
+
+
+def _days_since(date_str, now_epoch=None):
+    """Whole days between a 'YYYY-MM-DD' string and now (UTC). None if unparseable."""
+    if not date_str:
+        return None
+    try:
+        t = time.strptime(date_str[:10], "%Y-%m-%d")
+    except (ValueError, TypeError):
+        return None
+    now = now_epoch if now_epoch is not None else time.time()
+    return int((now - time.mktime(t) + time.timezone) // 86400)
+
+
+def phase_pct_nudges(phases, phases_updated=None, done_trigger_count=0, now_epoch=None):
+    """DETERMINISTIC, SUGGESTION-ONLY consistency checks on the phase board.
+
+    Never writes anything and never touches a pct — it only surfaces "this looks
+    off, a human should look" prompts on the dashboard. Every check is a hard
+    logical inconsistency between a phase's own `status` and `pct` (or the board's
+    age), NOT a guess about what the number *should* be — so it can't be
+    confidently wrong the way an auto-recompute of a high-stakes pct could.
+    Returns a list of {"phase": <id or None>, "message": str}.
+    """
+    out = []
+    for p in phases or []:
+        pid = p.get("id", "?")
+        status = p.get("status")
+        pct = p.get("pct")
+        if not isinstance(pct, (int, float)):
+            continue
+        if status == "proven" and pct < 100:
+            out.append({"phase": pid, "message": f"Phase {pid} is marked proven but sits at {pct}% — bump it to 100% or downgrade the status."})
+        elif pct == 100 and status not in ("proven",):
+            out.append({"phase": pid, "message": f"Phase {pid} is at 100% but marked '{status}' — promote it to proven, or the pct is wrong."})
+        elif status == "planned" and pct > 0:
+            out.append({"phase": pid, "message": f"Phase {pid} is marked planned but shows {pct}% — should it be 'live'?"})
+        elif status in ("live", "partial") and pct == 0:
+            out.append({"phase": pid, "message": f"Phase {pid} is marked {status} but 0% — set a real pct or mark it planned."})
+    age = _days_since(phases_updated, now_epoch)
+    if age is not None and age >= STALE_PHASE_DAYS:
+        extra = f", with {done_trigger_count} completed trigger(s) on record for this project" if done_trigger_count else ""
+        out.append({"phase": None, "message": f"Phase numbers were last updated {age}d ago{extra} — verify the pcts against current reality (edit the roadmap ```phases block)."})
+    return out
 
 
 def _clean_phase(p):

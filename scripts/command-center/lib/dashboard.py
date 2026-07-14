@@ -467,7 +467,21 @@ def render(state, briefing, ledger_summary):
   <div class="ph-state">{_e(p.get("state"))}</div>
 </div>"""
         phases_updated = b.get("phases_updated")
-        phases_html = _sec("Roadmap", f'<div class="board">{rows}</div>',
+        # Deterministic, suggestion-only sanity checks (status/pct inconsistencies +
+        # staleness) computed fresh each cycle. Surfaced, never auto-applied — the
+        # numbers stay human-authored; this just flags "a human should look."
+        nudges = state.get("phase_nudges") or []
+        nudge_html = ""
+        if nudges:
+            lis = "".join(f"<li>{_e(n['message'])}</li>" for n in nudges)
+            nudge_html = (
+                '<div class="panel" style="margin-top:14px;border-left:3px solid var(--amber)">'
+                '<p class="sub" style="margin:0 0 8px">⚠ consistency checks — suggestions only, '
+                'nothing is auto-applied; edit the roadmap block if one looks right</p>'
+                '<ul style="margin:0;padding-left:20px;display:grid;gap:6px;font-size:13px;'
+                f'color:var(--ink-dim)">{lis}</ul></div>'
+            )
+        phases_html = _sec("Roadmap", f'<div class="board">{rows}</div>{nudge_html}',
                            note=("phases · status · progress — synced from the roadmap doc"
                                  if phases_updated else "phases · status · progress · current state"),
                            updated_iso=phases_updated or b.get("updated_at"))

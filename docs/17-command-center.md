@@ -79,6 +79,20 @@ A bad or missing block leaves `briefing.json` untouched (the reason is logged). 
 stamped with the roadmap doc's own `updated:` date, so its freshness reflects the source you actually
 edit. Everything else in the briefing stays AI-authored at checkpoints as above.
 
+Two things keep that phase board honest between edits, both automatic and both refusing to touch a
+high-stakes number themselves:
+
+- **Consistency nudges.** Each cycle the engine checks every phase for a `status`/`pct` contradiction
+  (marked *proven* but under 100%, at 100% but not *proven*, *planned* but above 0%, *live* but 0%)
+  and warns if the whole board has gone stale. These surface as a "suggestions only — nothing is
+  auto-applied" callout under the phase board. They flag *that* a number looks wrong for a human to
+  fix; they never guess what it should be.
+- **Loop-safe narrative refresh (optional).** A cheap local model can keep the "where we are"
+  one-liner and the human-action queue current on quiet, bookkeeping-only cycles (`run-loop.sh` calls
+  `refresh_briefing_local.py --loop-mode`). Anything substantive is deliberately left for a human/AI
+  checkpoint — the cheap model never auto-publishes a real narrative claim. Set
+  `CC_NARRATIVE_REFRESH=0` to turn it off.
+
 ## Durable state (optional)
 
 By default all generated state (ledger, dedup file, dashboard, briefing) stays local to whichever

@@ -307,6 +307,9 @@ def main():
     ap.add_argument("--force", action="store_true", help="skip the drift gate")
     ap.add_argument("--dry-run", action="store_true", help="draft + classify, never write or commit")
     ap.add_argument("--no-push", action="store_true", help="commit locally but don't push (bookkeeping path only)")
+    ap.add_argument("--loop-mode", action="store_true",
+                    help="loop-safe: only the bookkeeping path writes (no self-commit — run-loop pushes the "
+                         "state repo); substantive diffs are left for a human/session checkpoint, never auto-published")
     args = ap.parse_args()
 
     instance_dir = os.path.expanduser(args.instance_dir)
@@ -355,18 +358,35 @@ def main():
         print(json.dumps(result, indent=2))
         return 0
 
+    # Loop-safe guard: under run-loop (--loop-mode) a SUBSTANTIVE diff must NOT
+    # touch the live briefing.json, because run-loop's blanket `git add -A && push`
+    # after the cycle would then auto-publish a cheap local model's substantive
+    # prose — defeating the whole point of the bookkeeping/substantive split. Leave
+    # it for a human/session checkpoint instead. (Outside loop-mode the old behavior
+    # stands: the substantive draft is written as an uncommitted diff for review.)
+    if args.loop_mode and classification == "substantive":
+        result["action"] = ("substantive diff — NOT written (loop-mode leaves narrative refreshes for a "
+                             "human/session checkpoint; a cheap local model must not auto-publish substantive prose)")
+        print(json.dumps(result, indent=2))
+        return 0
+
     with open(briefing_path, "w") as f:
         json.dump(new_briefing, f, indent=2)
         f.write("\n")
 
     if classification == "bookkeeping":
-        rel = os.path.relpath(briefing_path, repo_dir)
-        committed, msg = git_commit_push(
-            repo_dir, rel,
-            f"briefing: mechanical narrative refresh ({args.model}, bookkeeping-only)",
-            push=not args.no_push,
-        )
-        result["action"] = msg if committed else msg
+        if args.loop_mode:
+            # run-loop commits+pushes the whole state repo after the cycle — don't
+            # double-commit here, just leave the written file for that push.
+            result["action"] = "bookkeeping refresh written (state-repo commit+push handled by run-loop)"
+        else:
+            rel = os.path.relpath(briefing_path, repo_dir)
+            committed, msg = git_commit_push(
+                repo_dir, rel,
+                f"briefing: mechanical narrative refresh ({args.model}, bookkeeping-only)",
+                push=not args.no_push,
+            )
+            result["action"] = msg if committed else msg
     else:
         result["action"] = "written to briefing.json as an UNCOMMITTED local diff — needs Claude/human review before commit (substantive change)"
 

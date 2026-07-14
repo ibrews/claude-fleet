@@ -199,6 +199,16 @@ def run_cycle(instance_path, *, dry_run=False, session="cc-master", kb_root=None
     # See interrupt.py's module docstring for why this is explicit, not inferred.
     decision_needed_path = os.path.join(os.path.dirname(paths["instance_state_dir"]), "DECISION_NEEDED.md")
     state["decision_needed_file"] = decision_needed_path if os.path.exists(decision_needed_path) else None
+    # Deterministic, suggestion-only sanity checks on the phase board (status/pct
+    # inconsistencies + staleness). Ephemeral — attached to the per-cycle state
+    # model for the dashboard, NEVER written back into briefing.json. The engine
+    # surfaces "this pct looks off," a human decides; it never auto-edits a
+    # high-stakes progress number.
+    state["phase_nudges"] = phase_sync.phase_pct_nudges(
+        briefing.get("phases") if briefing else [],
+        (briefing or {}).get("phases_updated"),
+        len(state["triggers_done"]),
+    )
     usage = spawn.read_usage_usd(policy)
     ledger_mod.append(paths["ledger"], {
         "event": "reconcile",

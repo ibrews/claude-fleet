@@ -72,6 +72,23 @@ while true; do
     echo "[run-loop] WARNING: cycle.py exited non-zero — logged, continuing loop (not fatal)"
   fi
 
+  # Optional cheap-local-LLM narrative refresh (one_liner_now + the "waiting on
+  # you" action queue) during quiet bookkeeping stretches, so those two fields
+  # don't sit stale between human checkpoints. LOOP-SAFE (--loop-mode): only the
+  # bookkeeping path writes; a substantive diff is left for a human/session
+  # checkpoint so a cheap model never auto-publishes questionable prose. The
+  # written file rides out on the sync_state_repo push below. Best-effort — a
+  # failure (e.g. Ollama not reachable on this host, gate not fired) never breaks
+  # the loop. Disable with CC_NARRATIVE_REFRESH=0.
+  if [ "${CC_NARRATIVE_REFRESH:-1}" = "1" ]; then
+    CC_INSTANCE_NAME="$(python3 -c "import json,sys; print(json.load(open('$INSTANCE'))['name'])" 2>/dev/null)"
+    if [ -n "$CC_INSTANCE_NAME" ] && [ -d "$STATE_ROOT/$CC_INSTANCE_NAME" ]; then
+      python3 "$ENGINE_DIR/lib/refresh_briefing_local.py" \
+        --instance-dir "$STATE_ROOT/$CC_INSTANCE_NAME" --loop-mode \
+        || echo "[run-loop] narrative refresh skipped (non-fatal)"
+    fi
+  fi
+
   sync_state_repo push
   sleep "$SLEEP_SECONDS"
 done
