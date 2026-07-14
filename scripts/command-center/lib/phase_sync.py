@@ -11,13 +11,24 @@ source of truth. This module makes the roadmap doc the single source: it
 parses a machine-readable ```phases block out of `content_source` and copies
 it verbatim into briefing.json's `phases` + `progress` on every cycle.
 
-DELIBERATELY a literal copy — NOT interpretation. This is the same house rule
-refresh_briefing_local.py follows for the narrative fields, applied to the
-numbers: the numbers stay HUMAN-AUTHORED (in the roadmap block), and a cheap
-deterministic parser (this file) only carries them across. No model, no
-averaging, no guessing — so there is no way for this step to hallucinate a
-high-stakes progress number. If the block is missing or malformed, briefing.json
-is left exactly as-is and the reason is logged; it never fails a cycle.
+Two kinds of number, handled two different ways — both deterministic, no LLM:
+
+  1. Per-phase `pct` — HUMAN-AUTHORED in the roadmap block. Copied verbatim into
+     briefing.json's `phases`. No model, no guessing; this step can't hallucinate
+     a high-stakes phase number.
+  2. The two progress BIGBARS (to-first-show / full-roadmap) — COMPUTED here as
+     weighted averages of the phase pcts, so they can never sit stale while the
+     phases move underneath them (the failure the operator flagged: 78%/55% unchanged for
+     days because they were separately hand-typed). Each phase carries a `weight`
+     (its relative size/effort, default 1) and a `first_show` flag (is it on the
+     critical path to the Phase-3 "first live show" milestone). to_first_show_pct
+     = weighted mean of the first_show phases; full_roadmap_pct = weighted mean of
+     ALL phases. Editing any phase pct moves the right bigbar automatically. The
+     only human inputs are the per-phase pct/weight/first_show and the note prose
+     — never the rolled-up bigbar number itself.
+
+If the block is missing or malformed, briefing.json is left exactly as-is and the
+reason is logged; it never fails a cycle.
 
 The block format (a fenced ```phases block containing JSON, stdlib-parseable
 with zero third-party deps — PyYAML is intentionally NOT required, since this
@@ -25,15 +36,18 @@ runs on Alpha in the run-loop):
 
     ```phases
     {
-      "progress": {"to_first_show_pct": 78, "to_first_show_note": "...",
-                   "full_roadmap_pct": 55, "full_roadmap_note": "..."},
+      "progress": {"to_first_show_note": "...", "full_roadmap_note": "..."},
       "phases": [
         {"id": "1", "name": "...", "subtitle": "...", "status": "proven",
-         "pct": 100, "state": "..."},
+         "pct": 100, "state": "...", "weight": 1, "first_show": true},
         ...
       ]
     }
     ```
+
+`weight` (default 1 if omitted) and `first_show` (default false) drive the bigbar
+computation only — they are NOT copied into briefing.json's phases, which stays
+the plain id/name/subtitle/status/pct/state schema the dashboard renders.
 
 Also lifts the roadmap doc's own frontmatter `updated:` date into the briefing
 as `phases_updated`, so the dashboard can stamp the phase board with the real
@@ -53,8 +67,9 @@ import sys
 # subtitle/state are optional (render as blank) but recommended.
 REQUIRED_PHASE_KEYS = ("id", "name", "status", "pct")
 VALID_STATUSES = {"proven", "live", "blocked", "planned", "partial"}
-PROGRESS_KEYS = ("to_first_show_pct", "to_first_show_note",
-                 "full_roadmap_pct", "full_roadmap_note")
+# Fields on a briefing.json phase (weight/first_show are compute-only, NOT stored).
+DEFAULT_TO_FIRST_SHOW_NOTE = "Weighted average of the phases on the critical path to the first live show."
+DEFAULT_FULL_ROADMAP_NOTE = "Weighted average across every phase in the roadmap."
 
 _FENCE_RE = re.compile(r"^```phases[ \t]*\r?\n(.*?)^```", re.MULTILINE | re.DOTALL)
 
@@ -121,15 +136,45 @@ def validate(data):
             return False, f"phase {p.get('id')!r} has an out-of-range pct: {p.get('pct')!r}"
         if p["status"] not in VALID_STATUSES:
             return False, f"phase {p.get('id')!r} has unknown status {p['status']!r} (expected one of {sorted(VALID_STATUSES)})"
+        w = p.get("weight")
+        if w is not None and not (isinstance(w, (int, float)) and w >= 0):
+            return False, f"phase {p.get('id')!r} has a bad weight: {w!r} (must be a number >= 0)"
+        fs = p.get("first_show")
+        if fs is not None and not isinstance(fs, bool):
+            return False, f"phase {p.get('id')!r} has a non-boolean first_show: {fs!r}"
+    if not any(p.get("first_show") for p in phases):
+        return False, "no phase is flagged first_show=true — the to-first-show bigbar would have nothing to average"
     progress = data.get("progress")
-    if progress is not None:
-        if not isinstance(progress, dict):
-            return False, "'progress' is present but not an object"
-        for k in ("to_first_show_pct", "full_roadmap_pct"):
-            v = progress.get(k)
-            if v is not None and not (isinstance(v, (int, float)) and 0 <= v <= 100):
-                return False, f"progress.{k} out of range: {v!r}"
+    if progress is not None and not isinstance(progress, dict):
+        return False, "'progress' is present but not an object"
     return True, "ok"
+
+
+def _weighted_avg(phases):
+    """Weighted mean of phase pcts, rounded to a whole percent. weight defaults
+    to 1 (a bad/negative weight also falls back to 1). Empty set -> 0."""
+    num = den = 0.0
+    for p in phases:
+        w = p.get("weight", 1)
+        if not isinstance(w, (int, float)) or w < 0:
+            w = 1
+        num += float(p["pct"]) * w
+        den += w
+    return round(num / den) if den else 0
+
+
+def compute_progress(phases, progress_meta):
+    """DETERMINISTICALLY derive the two bigbars from the phase pcts. The bigbar
+    numbers are NEVER hand-authored — only the per-phase pct/weight/first_show
+    and the note prose are. Editing a phase pct moves the relevant bar."""
+    meta = progress_meta or {}
+    first_show = [p for p in phases if p.get("first_show")]
+    return {
+        "to_first_show_pct": _weighted_avg(first_show),
+        "to_first_show_note": meta.get("to_first_show_note") or DEFAULT_TO_FIRST_SHOW_NOTE,
+        "full_roadmap_pct": _weighted_avg(phases),
+        "full_roadmap_note": meta.get("full_roadmap_note") or DEFAULT_FULL_ROADMAP_NOTE,
+    }
 
 
 def _clean_phase(p):
@@ -145,19 +190,14 @@ def _clean_phase(p):
             "status": out["status"], "pct": out["pct"], "state": out.get("state", "")}
 
 
-def _clean_progress(pr):
-    return {k: pr[k] for k in PROGRESS_KEYS if k in pr}
-
-
 def apply(briefing, data, updated_date):
     """Return a NEW briefing dict with phases/progress/phases_updated replaced
-    from the block — every other field preserved untouched."""
+    from the block — every other field preserved untouched. `phases` are copied
+    verbatim (human-authored numbers); `progress` bigbars are COMPUTED from the
+    phase pcts (never copied), so they can't go stale independently."""
     out = dict(briefing or {})
     out["phases"] = [_clean_phase(p) for p in data["phases"]]
-    if isinstance(data.get("progress"), dict):
-        merged = dict(out.get("progress") or {})
-        merged.update(_clean_progress(data["progress"]))
-        out["progress"] = merged
+    out["progress"] = compute_progress(data["phases"], data.get("progress"))
     if updated_date:
         out["phases_updated"] = updated_date
     return out

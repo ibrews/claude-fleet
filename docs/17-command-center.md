@@ -60,17 +60,24 @@ fresh fork works immediately, the briefing is additive once someone writes one.
 
 ### Phase board sourced from your roadmap doc (no double-editing)
 
-Within the briefing, two things — the **phase board** and the two **progress bigbars** — are the
-kind of numbers you already keep in a project's roadmap/status doc. Editing them in *both* the
-roadmap and `briefing.json` is exactly how the two drift apart. So the engine sources them from one
-place: put a machine-readable fenced ```phases block (JSON — `id` / `name` / `subtitle` / `status` /
-`pct` / `state`, plus an optional `progress` object for the bigbars) in the doc named by
-`instance.json`'s `content_source`, and each cycle `lib/phase_sync.py` copies that block verbatim
-into `briefing.json`'s `phases` + `progress`. It's a **deterministic copy — no model, no averaging,
-no interpretation** — so the numbers stay exactly as you authored them, and a bad or missing block
-leaves `briefing.json` untouched (the reason is logged). The phase board is then stamped with the
-roadmap doc's own `updated:` date, so its freshness reflects the source you actually edit. Everything
-else in the briefing stays AI-authored at checkpoints as above.
+Within the briefing, the **phase board** and the two **progress bigbars** are the kind of numbers
+you already keep in a project's roadmap/status doc. Editing them in *both* the roadmap and
+`briefing.json` is exactly how the two drift apart — and hand-typing a rolled-up percentage is how it
+sits frozen for days while the phases move underneath it. So the engine derives both from one place:
+put a machine-readable fenced ```phases block (JSON) in the doc named by `instance.json`'s
+`content_source`, with one entry per phase — `id` / `name` / `subtitle` / `status` / `pct` / `state`,
+plus a `weight` (relative size, default 1) and a `first_show` flag (is this phase on the critical path
+to your first-milestone bigbar). Each cycle `lib/phase_sync.py`:
+
+- **copies the phases verbatim** into `briefing.json`'s `phases` (the per-phase `pct` stays exactly as
+  you authored it — no model, no interpretation), and
+- **computes the two bigbars** as weighted means of the phase pcts (`to_first_show_pct` over the
+  `first_show` phases, `full_roadmap_pct` over all of them). The bigbar number is never hand-typed, so
+  it can't go stale — edit any phase `pct` and the relevant bar moves on the next cycle.
+
+A bad or missing block leaves `briefing.json` untouched (the reason is logged). The phase board is
+stamped with the roadmap doc's own `updated:` date, so its freshness reflects the source you actually
+edit. Everything else in the briefing stays AI-authored at checkpoints as above.
 
 ## Durable state (optional)
 

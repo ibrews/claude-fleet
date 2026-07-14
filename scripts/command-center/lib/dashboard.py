@@ -426,13 +426,15 @@ def render(state, briefing, ledger_summary):
     <div class="bar planned"><i style="width:{pr.get("full_roadmap_pct", 0)}%;background:var(--gel)"></i></div>
     <div class="why">{_e(pr.get("full_roadmap_note"))}</div></div>
 </div>"""
-        # Staleness backstop: the phase board + these bigbars are copied verbatim
-        # from the roadmap doc's ```phases block, so their honest freshness is the
-        # ROADMAP's own updated date (not the narrative's updated_at, not render time).
+        # Staleness backstop: the phase board is copied from the roadmap doc's
+        # ```phases block and these bigbars are COMPUTED from those phase pcts each
+        # cycle — so their honest freshness is the ROADMAP's own updated date (not
+        # the narrative's updated_at, not render time), and they can't sit stale
+        # while the phases move.
         if b.get("phases_updated"):
             glance += (f'<p style="margin:8px 0 0;font-family:ui-monospace,monospace;font-size:11px;'
-                       f'color:var(--ink-faint)">phase board &amp; progress synced from the roadmap doc · '
-                       f'roadmap updated {_e(_fmt_date_only(b["phases_updated"]))}</p>')
+                       f'color:var(--ink-faint)">phase board synced from the roadmap doc · bigbars auto-computed '
+                       f'from phase progress · roadmap updated {_e(_fmt_date_only(b["phases_updated"]))}</p>')
 
     # ---- waiting on you (human action queue) ----
     haq_html = _human_action_queue_html(b)
