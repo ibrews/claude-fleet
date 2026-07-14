@@ -33,6 +33,7 @@ import dashboard  # noqa: E402
 import guardrail  # noqa: E402
 import interrupt  # noqa: E402
 import ledger as ledger_mod  # noqa: E402
+import phase_sync  # noqa: E402
 import reconcile  # noqa: E402
 import spawn  # noqa: E402
 
@@ -143,6 +144,18 @@ def run_cycle(instance_path, *, dry_run=False, session="cc-master", kb_root=None
     policy = guardrail.load_policy(os.path.join(ENGINE_DIR, "policy.json"))
     briefing = dashboard.load_briefing(paths["briefing"])
     result = {"instance": instance_config["name"], "halted": False}
+
+    # Keep the phase board + the two progress bigbars in lock-step with the
+    # roadmap doc (instance.content_source). A DETERMINISTIC, no-LLM copy of
+    # its machine-readable ```phases block into briefing.json — the numbers
+    # stay human-authored in the roadmap, this only carries them across so the
+    # two can no longer drift (the 2026-07-14 stale-briefing.json fix). Runs
+    # before the halt branch so a HALTED cycle still renders fresh phases.
+    # Fails safe: on any problem it leaves briefing.json untouched and logs why.
+    briefing, phase_sync_result = phase_sync.sync(
+        instance_config, kb_root, briefing, paths["briefing"], dry_run=dry_run)
+    ledger_mod.append(paths["ledger"], {"event": "phase_sync", **phase_sync_result})
+    result["phase_sync"] = phase_sync_result
 
     halt_path = next((p for p in paths["halt_candidates"] if os.path.exists(p)), None)
     if halt_path:

@@ -58,6 +58,20 @@ The dashboard renders two independent layers, each with its own visible stalenes
 If `briefing.json` doesn't exist yet, the dashboard degrades to mechanical-only with a hint — a
 fresh fork works immediately, the briefing is additive once someone writes one.
 
+### Phase board sourced from your roadmap doc (no double-editing)
+
+Within the briefing, two things — the **phase board** and the two **progress bigbars** — are the
+kind of numbers you already keep in a project's roadmap/status doc. Editing them in *both* the
+roadmap and `briefing.json` is exactly how the two drift apart. So the engine sources them from one
+place: put a machine-readable fenced ```phases block (JSON — `id` / `name` / `subtitle` / `status` /
+`pct` / `state`, plus an optional `progress` object for the bigbars) in the doc named by
+`instance.json`'s `content_source`, and each cycle `lib/phase_sync.py` copies that block verbatim
+into `briefing.json`'s `phases` + `progress`. It's a **deterministic copy — no model, no averaging,
+no interpretation** — so the numbers stay exactly as you authored them, and a bad or missing block
+leaves `briefing.json` untouched (the reason is logged). The phase board is then stamped with the
+roadmap doc's own `updated:` date, so its freshness reflects the source you actually edit. Everything
+else in the briefing stays AI-authored at checkpoints as above.
+
 ## Durable state (optional)
 
 By default all generated state (ledger, dedup file, dashboard, briefing) stays local to whichever

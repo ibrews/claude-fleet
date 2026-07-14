@@ -8,3 +8,4 @@ node_modules/
 telegram/fleet-bot/machines.json
 telegram/fleet-bot/node_modules/
 telegram/fleet-bot/package-lock.json
+__pycache__/
