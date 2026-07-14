@@ -168,13 +168,24 @@ def _e(s):
     return html.escape(str(s or ""))
 
 
-def _sec(title, body_html, note="", open_=True, count=None):
-    """A collapsible section styled like the artifact's sec-head."""
+_NO_UPDATE_TS = object()  # sentinel: caller didn't pass updated_iso at all -> no "Last updated" line
+
+
+def _sec(title, body_html, note="", open_=True, count=None, updated_iso=_NO_UPDATE_TS):
+    """A collapsible section styled like the artifact's sec-head.
+
+    updated_iso: a REAL data timestamp for this section's content — a full
+    UTC ISO datetime, a bare 'YYYY-MM-DD' date, or None (renders an honest
+    "no data timestamp available"). Omit the argument entirely (the
+    default sentinel) to skip the "Last updated" line altogether — used
+    only by call sites with no real underlying record to point to.
+    """
     n = f'<span class="note">{_e(note)}</span>' if note else ""
+    u = "" if updated_iso is _NO_UPDATE_TS else _last_updated_note_html(updated_iso)
     c = f" ({count})" if count is not None else ""
     return (
         f'<details class="sec"{" open" if open_ else ""}><summary><div class="sec-head">'
-        f'<h2>{_e(title)}{c}</h2><span class="rule"></span>{n}<span class="tw">toggle</span>'
+        f'<h2>{_e(title)}{c}</h2><span class="rule"></span>{n}{u}<span class="tw">toggle</span>'
         f"</div></summary>{body_html}</details>"
     )
 
@@ -229,7 +240,7 @@ def _human_action_queue_html(b):
 </div>"""
     return _sec("Waiting on you", f'<div class="haq-grid">{cards}</div>',
                 note=haq.get("_note", "") or "human-action queue · maintained by the orchestrator",
-                open_=True, count=len(items))
+                open_=True, count=len(items), updated_iso=b.get("updated_at"))
 
 
 def _now_iso():
@@ -257,6 +268,57 @@ def _ts_span(iso_utc):
     ET is the honest no-JS fallback per the operator's ask ('local, else EST — Agile
     Lens is NYC')."""
     return f'<span class="tzspan" data-utc="{_e(iso_utc)}">{_e(_fmt_et(iso_utc))}</span>'
+
+
+def _fmt_last_updated(iso_utc):
+    """'MM/DD/YYYY at HH:MM:SS AM/PM' in ET — the exact per-section 'Last
+    updated' format the operator asked for (dashboard looked stale with no per-
+    section freshness signal). Degrades to the raw ISO string rather than
+    guess a timezone if zoneinfo/tzdata is unavailable."""
+    try:
+        dt = datetime.strptime(iso_utc, "%Y-%m-%dT%H:%M:%SZ")
+        if _ET:
+            dt = dt.replace(tzinfo=dt_timezone.utc).astimezone(_ET)
+            return dt.strftime("%m/%d/%Y at %I:%M:%S %p %Z")
+        return dt.strftime("%m/%d/%Y at %I:%M:%S %p") + " UTC"
+    except Exception:
+        return iso_utc
+
+
+def _fmt_date_only(date_str):
+    """MM/DD/YYYY for a bare 'YYYY-MM-DD' record (e.g. a checkpoint entry)
+    that has no time-of-day — never invent one."""
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").strftime("%m/%d/%Y")
+    except Exception:
+        return date_str
+
+
+def _ts_span_sec(iso_utc):
+    """Like _ts_span but seconds-precision, upgraded via [data-utc-sec] —
+    used only by the 'Last updated' section lines below."""
+    return f'<span class="tzspan" data-utc-sec="{_e(iso_utc)}">{_e(_fmt_last_updated(iso_utc))}</span>'
+
+
+def _last_updated_note_html(value):
+    """Build a 'Last updated: ...' section-note fragment from a REAL data
+    timestamp — never the page's render time (that would show a section as
+    fresh just because someone loaded the dashboard, which is exactly the
+    "looks stale/fake freshness" complaint this exists to fix).
+
+    - Full UTC ISO datetime ('...T...Z') -> shown with time, JS-upgraded to
+      the viewer's own local clock (seconds included, per the operator's ask).
+    - Bare 'YYYY-MM-DD' date (e.g. a checkpoint with no recorded time) ->
+      date only, no JS time upgrade — inventing a time-of-day the record
+      never had would be worse than omitting one.
+    - Missing/None -> an honest "no data timestamp available" rather than
+      faking freshness.
+    """
+    if not value:
+        return '<span class="note">Last updated: (no data timestamp available)</span>'
+    if "T" in value:
+        return f'<span class="note">Last updated: {_ts_span_sec(value)}</span>'
+    return f'<span class="note">Last updated: {_e(_fmt_date_only(value))}</span>'
 
 
 _COPY_LINK_SCRIPT = """<script>
@@ -288,18 +350,26 @@ function copyCCLink(evt, btn){
 
 _TZ_UPGRADE_SCRIPT = """<script>
 (function(){
-  var els = document.querySelectorAll('[data-utc]');
-  for (var i = 0; i < els.length; i++) {
-    var el = els[i], iso = el.getAttribute('data-utc');
-    try {
-      var d = new Date(iso);
-      if (isNaN(d.getTime())) continue;
-      el.textContent = d.toLocaleString(undefined, {
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
-      });
-    } catch (e) {}
+  function upgrade(attr, opts){
+    var els = document.querySelectorAll('[' + attr + ']');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i], iso = el.getAttribute(attr);
+      try {
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) continue;
+        el.textContent = d.toLocaleString(undefined, opts);
+      } catch (e) {}
+    }
   }
+  upgrade('data-utc', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
+  });
+  // Seconds-precision variant for the per-section "Last updated" lines.
+  upgrade('data-utc-sec', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: 'numeric', minute: '2-digit', second: '2-digit', timeZoneName: 'short'
+  });
 })();
 </script>"""
 
@@ -341,6 +411,8 @@ def render(state, briefing, ledger_summary):
     glance = ""
     if b.get("one_liner_now"):
         glance += f'<p class="northstar" style="max-width:none;margin-top:20px"><b>Where we are:</b> {_e(b["one_liner_now"])}</p>'
+        glance += (f'<p style="margin:4px 0 0;font-family:ui-monospace,monospace;'
+                   f'font-size:11px;color:var(--ink-faint)">{_last_updated_note_html(b.get("updated_at"))}</p>')
     pr = b.get("progress") or {}
     if pr:
         glance += f"""
@@ -369,7 +441,8 @@ def render(state, briefing, ledger_summary):
             items += f'<li><span><b>{_e(r["title"])}</b>{_e(r["detail"])}{un}</span></li>'
         recs_html = _sec("What we should do next — PM recommendations",
                          f'<div class="rec"><ol>{items}</ol></div>',
-                         note="ranked · AI project manager's call, argue with it")
+                         note="ranked · AI project manager's call, argue with it",
+                         updated_iso=b.get("updated_at"))
 
     # ---- phase board with bars ----
     phases_html = ""
@@ -385,7 +458,8 @@ def render(state, briefing, ledger_summary):
   <div class="ph-state">{_e(p.get("state"))}</div>
 </div>"""
         phases_html = _sec("Roadmap", f'<div class="board">{rows}</div>',
-                           note="phases · status · progress · current state")
+                           note="phases · status · progress · current state",
+                           updated_iso=b.get("updated_at"))
 
     # ---- topics (the "what's the latest on…" Q&As) ----
     topics_html = ""
@@ -397,7 +471,7 @@ def render(state, briefing, ledger_summary):
         )
         topics_html = _sec("Questions, answered", cards,
                            note="click a question — written for someone who hasn't been tracking the project",
-                           count=len(b["topics"]))
+                           count=len(b["topics"]), updated_iso=b.get("updated_at"))
 
     # ---- problems ----
     problems_html = ""
@@ -409,7 +483,7 @@ def render(state, briefing, ledger_summary):
         )
         problems_html = _sec("Biggest unsolved problems",
                              f'<div class="panel"><ul class="clean">{items}</ul></div>',
-                             count=len(b["problems"]))
+                             count=len(b["problems"]), updated_iso=b.get("updated_at"))
 
     # ---- checkpoint timeline ----
     timeline_html = ""
@@ -418,9 +492,14 @@ def render(state, briefing, ledger_summary):
             f'<li><span class="d">{_e(c["date"])}</span><span class="k"></span><span class="w">{_e(c["label"])}</span></li>'
             for c in reversed(b["checkpoints"])
         )
+        # Most recent checkpoint's own date — more granular than the whole-
+        # briefing updated_at, and it's real per-entry data already on hand.
+        latest_cp_date = max(
+            (c.get("date", "") for c in b["checkpoints"] if c.get("date")), default=None
+        )
         timeline_html = _sec("Checkpoint timeline",
                              f'<div class="panel"><ul class="tl">{items}</ul></div>',
-                             note="newest first", open_=False)
+                             note="newest first", open_=False, updated_iso=latest_cp_date)
 
     # ---- mechanical layer ----
     tw = state.get("tracked_workers", [])
@@ -493,7 +572,8 @@ def render(state, briefing, ledger_summary):
     </ul></div>
 </div>"""
     mech_html = _sec("Live now — sessions, triggers, anomalies", mech_body,
-                     note=f"mechanical · regenerated every cycle · {ledger_summary}", open_=False)
+                     note=f"mechanical · regenerated every cycle · {ledger_summary}", open_=False,
+                     updated_iso=generated_iso)
 
     # ---- links ----
     links_html = ""
