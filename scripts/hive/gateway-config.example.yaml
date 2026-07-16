@@ -1,0 +1,121 @@
+# Fleet Hive gateway config — LiteLLM proxy, run on any always-on fleet machine.
+#
+# Copy to gateway-config.yaml and edit the api_base lines for YOUR machines
+# (Tailscale hostnames from roster.md, e.g. http://beta:11434 — not raw IPs).
+# No secrets belong in this file: every api_key line reads an env var that
+# launch-gateway.sh exports from your .env before starting the proxy.
+#
+# Verified syntax (docs.litellm.ai, 2026-07): load-balancing = repeated
+# model_name entries; aliases = router_settings.model_group_alias; fallbacks =
+# router_settings.fallbacks (ONE hop per entry — see docs/18-fleet-hive.md);
+# cooldowns/retries = litellm_settings. Virtual keys/budgets need Postgres and
+# are NOT used here — this file's general_settings.master_key is a single
+# static token shared by every hive.py caller.
+
+model_list:
+  # ── hive-fast: quick Q&A / classification (load-balanced local pool) ───────
+  - model_name: hive-fast
+    litellm_params:
+      model: ollama_chat/llama3.1:8b
+      api_base: http://alpha:11434
+  - model_name: hive-fast
+    litellm_params:
+      model: ollama_chat/llama3.1:8b
+      api_base: http://gamma:11434
+
+  # ── hive-coder: single-shot codegen, load-balanced across your GPU box(es) ─
+  - model_name: hive-coder
+    litellm_params:
+      model: ollama_chat/qwen2.5-coder:14b
+      api_base: http://beta:11434
+
+  # ── hive-drafter: bulk drafts / commit messages / KB writing ────────────────
+  - model_name: hive-drafter
+    litellm_params:
+      model: ollama_chat/llama3.1:8b
+      api_base: http://alpha:11434
+  - model_name: hive-drafter
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+  # ── hive-reasoner: planning / synthesis (cloud — reasoning models tend to
+  # burn a local GPU's whole context on hidden "thinking"; see Gotchas below) ─
+  - model_name: hive-reasoner
+    litellm_params:
+      model: nvidia_nim/qwen/qwen3.5-397b-a17b
+      api_key: os.environ/NVIDIA_API_KEY
+
+  # ── judge panel — deliberately 3 distinct model families (hive.py refuses
+  # to let a judge grade a generator from its own family) ─────────────────────
+  - model_name: hive-judge-a
+    litellm_params:
+      model: nvidia_nim/qwen/qwen3.5-397b-a17b
+      api_key: os.environ/NVIDIA_API_KEY
+  - model_name: hive-judge-b
+    litellm_params:
+      model: nvidia_nim/openai/gpt-oss-120b
+      api_key: os.environ/NVIDIA_API_KEY
+  - model_name: hive-judge-c
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+      # 2.5 Pro/Flash spend "thinking" tokens from the SAME budget as visible
+      # output — a caller passing a small --max-tokens can get an empty
+      # response with finishReason MAX_TOKENS. hive.py's CLI default (4096)
+      # already accounts for this; don't lower it much for judge/reasoner calls.
+
+  # ── standalone precision-dispatch targets (bypass aliasing entirely) ───────
+  - model_name: gemini-flash
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+  - model_name: gemini-pro
+    litellm_params:
+      model: gemini/gemini-2.5-pro
+      api_key: os.environ/GEMINI_API_KEY
+  - model_name: nim-qwen3.5
+    litellm_params:
+      model: nvidia_nim/qwen/qwen3.5-397b-a17b
+      api_key: os.environ/NVIDIA_API_KEY
+
+  # ── optional extra cloud lanes — uncomment + add the matching key to .env ──
+  # - model_name: groq-llama
+  #   litellm_params:
+  #     model: groq/llama-3.3-70b-versatile
+  #     api_key: os.environ/GROQ_API_KEY
+  # - model_name: cerebras-gpt-oss
+  #   litellm_params:
+  #     model: cerebras/gpt-oss-120b
+  #     api_key: os.environ/CEREBRAS_API_KEY
+
+router_settings:
+  routing_strategy: simple-shuffle
+  # Fallback chains only follow ONE hop per litellm version tested — if a
+  # fallback target itself can fail, give IT its own chain-link entry too,
+  # rather than assuming the router walks the rest of the original list.
+  fallbacks:
+    - {"hive-fast": ["gemini-flash"]}
+    - {"hive-coder": ["nim-qwen3.5", "gemini-flash"]}
+    - {"hive-drafter": ["gemini-flash"]}
+    - {"hive-reasoner": ["gemini-pro"]}
+    - {"nim-qwen3.5": ["gemini-flash"]}
+
+litellm_settings:
+  num_retries: 1
+  request_timeout: 60     # must stay well below hive.py's client-side deadline (default 300s)
+  allowed_fails: 2        # per-deployment failures before cooldown
+  cooldown_time: 120      # seconds a flaky local host sits out of the load-balance pool
+
+general_settings:
+  master_key: os.environ/HIVE_MASTER_KEY
+
+# ── Known gotchas (verified live building this) — see docs/18-fleet-hive.md ──
+# - LiteLLM does NOT forward Ollama's `think:false` param (config- or request-level).
+#   A local reasoning model (e.g. deepseek-r1) that needs it will return EMPTY
+#   content behind this gateway — keep it off the gateway, call it directly.
+# - Some providers (observed: Cerebras) 403 a bare `python-urllib` User-Agent —
+#   hive.py already sends a curl-style one; if you add your own client, do the same.
+# - A client-side socket timeout does not bound total request time if the gateway
+#   itself hangs mid-retry — hive.py wraps every call in a hard total deadline
+#   via a worker-thread future, not just urllib's timeout=.

@@ -229,6 +229,7 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 4. **Open the Fleet Commander game** (`docs/fleet-commander.html` locally or the [GitHub Pages link](https://ibrews.github.io/claude-fleet/docs/fleet-commander.html)) — an interactive browser game that teaches the full architecture: name your machines, install the stack, and dispatch tasks via Inbox, Instant, or the real-time Bus while watching data pulses travel through the network.
 5. **Stand up the session bus and message a session live** — `node scripts/fleet-bus-server.js`, then arm a listener with `node scripts/fleet-bus-client.js listen --session test` on one machine and `node scripts/fleet-bus-client.js send --to <that machine> --body "hi"` from another. See [docs/16-session-bus.md](docs/16-session-bus.md).
 6. **Route a heavy task through Gemini** — set `GEMINI_API_KEY` in your shell, then ask Claude to summarize a large file using `GEMINI_API_KEY=$GEMINI_API_KEY gemini -p "summarize this: $(cat big-file.txt)" -y`. This offloads token cost from Claude to Gemini's 1M-context window.
+7. **Ask three models the same question at once** — `pip install 'litellm[proxy]'`, then follow [Fleet Hive](docs/18-fleet-hive.md) to stand up the gateway and run `python3 scripts/hive/hive.py swarm -m hive-fast,gemini-flash,nim-qwen3.5 "Explain the CAP theorem in one sentence."` — three different models answer in parallel, side by side.
 
 ## Documentation
 
@@ -250,6 +251,7 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 | [Concurrent Sessions](docs/14-concurrent-sessions.md) | Session board, inbox claim protocol, git worktree isolation |
 | [Second Brain](docs/15-second-brain.md) | Building a well-routable shared knowledge base |
 | [Session Bus](docs/16-session-bus.md) | Real-time session-to-session messaging — a zero-dependency alternative to waiting for the next session start |
+| [Fleet Hive](docs/18-fleet-hive.md) | LiteLLM gateway + parallel orchestrator — one endpoint for every model you have keys for, fan-out calls, and a cross-family judge panel |
 
 ## Try It — Fleet Commander
 
