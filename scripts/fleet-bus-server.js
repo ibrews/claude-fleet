@@ -16,6 +16,9 @@
 //   GET  /poll    ?machine=&session=&waitSeconds=   -> long-poll receive
 //   GET  /sessions -> who is currently listening, fleet-wide
 //   GET  /health
+//   POST /role/claim  {role, machine, session}                  -> register holder
+//   GET  /role/whois  ?role=                                    -> holder + liveness + history
+//   POST /role/retire {role, to_machine?, to_session, reason, window_hours?} -> handoff + redirect
 //
 // Delivery model: if a listener is already long-polling for the target
 // machine/session, the message resolves that poll immediately (delivered).
@@ -28,6 +31,20 @@
 // rest of claude-fleet, which assumes a private Tailscale mesh. Reads (poll,
 // sessions, health) are never gated, since a listener has nothing to hide by
 // announcing it's listening.
+//
+// Roles — durable ownership for a recurring job (e.g. "build-orchestrator"),
+// so a free-text session slug can't silently collide the way two sessions
+// registering the same string did in the field (see docs/16-session-bus.md
+// § Roles for the incident this fixes):
+//   POST /role/claim   {role, machine, session}            -> register holder
+//   GET  /role/whois   ?role=                              -> holder + liveness + history
+//   POST /role/retire  {role, to_machine, to_session, reason, window_hours?}
+// The current holder of a role is simply the most recent 'claim' event for
+// it — an append-only in-memory log, same last-write-wins shape as the rest
+// of this file (no separate "current state" table to keep in sync). Liveness
+// is driven by `lastSeen`, a plain Map updated on every /poll hit — traffic
+// the bus already receives from `listen`'s long-poll loop — so it works
+// without any new client-side heartbeat.
 //
 // See docs/16-session-bus.md for the full architecture + the Claude Code
 // Monitor-hook recipe that lets a live session receive these messages.
@@ -102,6 +119,48 @@ let nextId = 1;
 const messages = [];
 // pollers waiting on a poll: [{ machine, session, res, timer }]
 let pollers = [];
+
+// ── Roles: durable ownership on top of the raw machine/session routing ────
+// Append-only log, one entry per claim/retire. In-memory only, like
+// everything else in this file — a restart clears roles the same way it
+// clears the message queue (there's no durable-store expectation here; see
+// docs/16-session-bus.md § Roles for why the internal/SQLite-backed version
+// this was ported from doesn't apply to the public in-memory server).
+const roleEvents = []; // { role, event: 'claim'|'retire', machine, session, at, reason? }
+// `${machine}/${session}` -> last-seen epoch ms. Updated on every /poll hit
+// (both an immediate backlog return and a fresh long-poll registration), so
+// liveness is derived from traffic the bus already receives — no separate
+// client heartbeat needed, and it's OS-agnostic.
+const lastSeen = new Map();
+const STALE_MS = 15 * 60 * 1000; // 15 minutes — see design doc for why
+
+function touchLastSeen(machine, session) {
+  if (!machine || !session) return;
+  lastSeen.set(`${machine}/${session}`, Date.now());
+}
+
+function currentHolder(role) {
+  for (let i = roleEvents.length - 1; i >= 0; i--) {
+    const e = roleEvents[i];
+    if (e.role === role && e.event === 'claim') return e;
+  }
+  return null;
+}
+
+function roleHistory(role, limit = 6) {
+  return roleEvents.filter(e => e.role === role).slice(-limit);
+}
+
+function liveness(machine, session) {
+  const seenAt = lastSeen.get(`${machine}/${session}`);
+  if (!seenAt) return { status: 'stale', last_seen_at: null, seconds_since: null };
+  const secondsSince = Math.round((Date.now() - seenAt) / 1000);
+  return {
+    status: secondsSince * 1000 <= STALE_MS ? 'live' : 'stale',
+    last_seen_at: new Date(seenAt).toISOString(),
+    seconds_since: secondsSince,
+  };
+}
 
 function timingSafeEqual(a, b) {
   const ab = Buffer.from(String(a));
@@ -187,6 +246,11 @@ const server = http.createServer((req, res) => {
     if (!machine) return json(res, 400, { error: 'machine query param required' });
     const waitSeconds = Math.min(Math.max(parseInt(url.searchParams.get('waitSeconds'), 10) || 25, 1), MAX_WAIT_SECONDS);
 
+    // Every poll — whether it resolves immediately or parks — is proof this
+    // machine/session pair is alive. This is the only liveness signal roles
+    // use (see touchLastSeen definition above); no separate heartbeat call.
+    touchLastSeen(machine, session);
+
     const backlog = backlogFor(machine, session);
     if (backlog.length) return json(res, 200, backlog);
 
@@ -195,6 +259,94 @@ const server = http.createServer((req, res) => {
     p.timer = setTimeout(() => resolvePoller(p, []), waitSeconds * 1000);
     req.on('close', () => { clearTimeout(p.timer); pollers = pollers.filter(x => x !== p); });
     return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/role/claim') {
+    if (!tokenOk(req)) return json(res, 401, { error: 'missing or invalid X-Fleet-Token' });
+    return readJsonBody(req, (err, body) => {
+      if (err) return json(res, 400, { error: err.message });
+      const role = String(body.role || '').trim();
+      const machine = String(body.machine || '').toLowerCase().trim();
+      const session = String(body.session || '').trim();
+      if (!role || !machine || !session) return json(res, 400, { error: 'role, machine, session are required' });
+      const entry = { role, event: 'claim', machine, session, at: new Date().toISOString() };
+      roleEvents.push(entry);
+      touchLastSeen(machine, session); // claiming counts as a check-in
+      return json(res, 200, { role, holder: entry });
+    });
+  }
+
+  if (req.method === 'GET' && url.pathname === '/role/whois') {
+    const role = (url.searchParams.get('role') || '').trim();
+    if (!role) return json(res, 400, { error: 'role query param required' });
+    const holder = currentHolder(role);
+    if (!holder) return json(res, 200, { role, holder: null, liveness: null, history: [] });
+    return json(res, 200, {
+      role,
+      holder,
+      liveness: liveness(holder.machine, holder.session),
+      history: roleHistory(role),
+    });
+  }
+
+  if (req.method === 'POST' && url.pathname === '/role/retire') {
+    if (!tokenOk(req)) return json(res, 401, { error: 'missing or invalid X-Fleet-Token' });
+    return readJsonBody(req, (err, body) => {
+      if (err) return json(res, 400, { error: err.message });
+      const role = String(body.role || '').trim();
+      const toMachine = String(body.to_machine || '').toLowerCase().trim();
+      const toSession = String(body.to_session || '').trim();
+      const reason = String(body.reason || '').trim();
+      if (!role || !toSession || !reason) return json(res, 400, { error: 'role, to_session, reason are required (to_machine optional)' });
+      const windowHours = Math.max(parseFloat(body.window_hours) || 6, 0.1);
+
+      // Atomic: log the retire (if there was a previous holder) then the new
+      // claim in the same tick, so a concurrent whois can never observe the
+      // role with no current holder mid-handoff.
+      const prev = currentHolder(role);
+      if (prev) roleEvents.push({ role, event: 'retire', machine: prev.machine, session: prev.session, at: new Date().toISOString(), reason });
+      const newHolder = { role, event: 'claim', machine: toMachine || null, session: toSession, at: new Date().toISOString() };
+      roleEvents.push(newHolder);
+      if (toMachine) touchLastSeen(toMachine, toSession);
+
+      // Redirect notice: anyone who messaged the OLD holder recently was
+      // presumably trying to reach this role, not that specific session id.
+      // Scan the in-memory message log directly — no separate filtered
+      // endpoint is needed here (unlike the internal SQLite-backed version
+      // this was ported from) because the retire handler runs in the same
+      // process that already holds `messages`.
+      const redirected = [];
+      if (prev) {
+        const cutoff = Date.now() - windowHours * 3600 * 1000;
+        const seen = new Set();
+        for (const m of messages) {
+          if (m.to !== prev.machine) continue;
+          if (m.toSession && m.toSession !== prev.session) continue;
+          if (new Date(m.created).getTime() < cutoff) continue;
+          if (!m.from || !m.fromSession) continue;
+          const key = `${m.from}/${m.fromSession}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const redirectMsg = {
+            id: nextId++,
+            created: new Date().toISOString(),
+            to: m.from,
+            from: toMachine || (prev.machine || 'fleet-bus'),
+            toSession: m.fromSession,
+            fromSession: toSession,
+            body: `orchestration handoff: role '${role}' handed off from ${(prev.machine || '?')}/${prev.session} `
+                + `to ${(toMachine || '?')}/${toSession} — reason: ${reason}. Address future messages there `
+                + `(--to-role ${role} or --to-session ${toSession}).`,
+            delivered: false,
+          };
+          messages.push(redirectMsg);
+          deliver(redirectMsg);
+          redirected.push(key);
+        }
+      }
+
+      return json(res, 200, { role, previous_holder: prev, new_holder: newHolder, redirected, reason });
+    });
   }
 
   if (req.method === 'POST' && url.pathname === '/send') {
@@ -238,7 +390,11 @@ const server = http.createServer((req, res) => {
     });
   }
 
-  json(res, 404, { error: 'not found', endpoints: ['POST /send', 'GET /poll', 'GET /sessions', 'GET /messages', 'GET /health'] });
+  json(res, 404, {
+    error: 'not found',
+    endpoints: ['POST /send', 'GET /poll', 'GET /sessions', 'GET /messages', 'GET /health',
+                'POST /role/claim', 'GET /role/whois', 'POST /role/retire'],
+  });
 });
 
 server.listen(PORT, () => {

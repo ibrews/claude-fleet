@@ -105,6 +105,40 @@ Use it when a session is about to finish ambiguous or non-trivial work and there
 
 `/sessions` and `/msg <machine> <text>` are also available directly in Telegram once fleet-bot is set up — no reply-thread needed.
 
+## Roles: durable ownership for a recurring job
+
+Plain `--to`/`--to-session` routing is a free-text string with no ownership concept — nothing stops two different sessions from registering the same slug. That's exactly what happened in the field: a long-running orchestrator session went through several context compactions overnight, the operator started a fresh session to take over, and **three separate sessions in a row registered the identical slug** for the same job. The result: messages sent to that slug landed on whichever of the three happened to be listening at that instant, with the sender unable to tell which one received it or whether it was the current one, and one of the superseded sessions quietly went stale with messages sitting in its queue forever, since `send` only ever reports "queued" — indistinguishable wording for "will deliver in a minute" and "the target is dead and this will never be read."
+
+Roles add a thin ownership layer on top of the same routing, for jobs that matter enough to have a canonical current holder — a build orchestrator, a long-running dispatcher, anything you'd otherwise be tempted to give a fixed session name:
+
+```bash
+# Register yourself as the current holder of a role
+node scripts/fleet-bus-client.js claim-role build-orchestrator --session my-session-id
+
+# Message whoever currently holds it, instead of a fixed --to/--to-session
+node scripts/fleet-bus-client.js send --to-role build-orchestrator --body "status?" --session my-id
+
+# Check who holds it, and whether they look alive
+node scripts/fleet-bus-client.js whois build-orchestrator
+
+# Hand off to a successor session — atomically reassigns the role and
+# redirects anyone who recently messaged the old holder
+node scripts/fleet-bus-client.js retire-role build-orchestrator --to new-session-id --reason "context getting long, handing off"
+```
+
+**How it works:**
+
+- The **current holder** of a role is simply the most recent `claim` event for it — an append-only in-memory log, same last-write-wins shape as the rest of the bus (no separate "current state" to keep in sync).
+- **Liveness** is a 15-minute staleness window driven by `lastSeen`, a plain map updated on every `/poll` hit — i.e. traffic `listen`'s long-poll loop already generates. No separate heartbeat call, and it works identically for every OS the bus runs on, since it's server-side and derived from requests the client already makes.
+- `send --to-role` resolves the role to its current holder client-side (one `whois` call, then a normal send) rather than the server accepting a `to_role` field directly — this keeps the hot `/send` path, which every existing caller depends on staying unchanged, untouched.
+- If the resolved holder isn't confirmed live, `send --to-role` never silently reuses the ambiguous "queued" wording from plain sends — it prints an explicit `UNCERTAIN DELIVERY` line to stderr before sending to the last-known holder anyway, so the sender is told rather than left to infer.
+- `retire-role` is atomic: it logs the retire event for the old holder and the claim event for the new one before returning, so a concurrent `whois` can never observe the role with no current holder mid-handoff. It also scans the in-memory message log for anyone who messaged the old holder within the last few hours (`--window-hours`, default 6) and sends each of them a redirect notice pointing at the new holder.
+- Like everything else in this server, roles are **in-memory only** — a restart clears them along with the message queue. There's no durable-store expectation here (unlike the internal, SQLite-backed system this was ported from — see below); if you need role assignments to survive a restart, that's a good candidate for the same kind of durable layer you'd add for anything else in this file.
+
+**Defensive note ported along with the concept:** a role's `machine` field can be `null` if it was claimed via `retire-role` without `--to-machine`. The client guards every place it displays or reasons about that field with `|| '?'` rather than letting a bare template literal quietly print `undefined`, or a later `.toLowerCase()`-style call throw — this mirrors a real `TypeError` the internal Python client hit on exactly that null-field case, found while verifying the same concept there.
+
+This is a from-scratch reimplementation against this repo's in-memory architecture, not a port of the internal server's code — the internal version persists role events to SQLite (so they survive a restart) and needed a separate filtered-messages endpoint for the retire handler to call over HTTP; here the retire handler runs in the same process that already holds the message array, so it just reads it directly.
+
 ## API Reference
 
 | Method | Path | Purpose |
@@ -114,6 +148,9 @@ Use it when a session is about to finish ambiguous or non-trivial work and there
 | `GET` | `/sessions` | Currently-listening sessions, fleet-wide |
 | `GET` | `/messages` | Last 50 messages, optional `?machine=` filter |
 | `GET` | `/health` | `{ok, messages, listeners}` |
+| `POST` | `/role/claim` | `{role, machine, session}` — register current holder, token-gated |
+| `GET` | `/role/whois` | `?role=` — current holder + liveness (`live`/`stale`) + recent history |
+| `POST` | `/role/retire` | `{role, to_machine?, to_session, reason, window_hours?}` — atomic handoff + redirect, token-gated |
 
 ## Gotcha: don't use Monitor's `ws:` mode
 
