@@ -170,12 +170,17 @@ def compute_progress(phases, progress_meta):
     and the note prose are. Editing a phase pct moves the relevant bar."""
     meta = progress_meta or {}
     first_show = [p for p in phases if p.get("first_show")]
-    return {
+    out = {
         "to_first_show_pct": _weighted_avg(first_show),
         "to_first_show_note": meta.get("to_first_show_note") or DEFAULT_TO_FIRST_SHOW_NOTE,
         "full_roadmap_pct": _weighted_avg(phases),
         "full_roadmap_note": meta.get("full_roadmap_note") or DEFAULT_FULL_ROADMAP_NOTE,
     }
+    # Optional per-instance label for the first bigbar (the dashboard's default is
+    # your-project's "To first live show (Phase 3)"); passed through verbatim.
+    if meta.get("to_first_show_label"):
+        out["to_first_show_label"] = meta["to_first_show_label"]
+    return out
 
 
 # How old the phase board can get before the dashboard nudges someone to re-check it.

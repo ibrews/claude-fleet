@@ -417,7 +417,7 @@ def render(state, briefing, ledger_summary):
     if pr:
         glance += f"""
 <div class="bigbars">
-  <div class="bigbar"><div class="t">To first live show (Phase 3)</div>
+  <div class="bigbar"><div class="t">{_e(pr.get("to_first_show_label", "To first live show (Phase 3)"))}</div>
     <div class="n">{pr.get("to_first_show_pct", 0)}<small>%</small></div>
     <div class="bar live"><i style="width:{pr.get("to_first_show_pct", 0)}%"></i></div>
     <div class="why">{_e(pr.get("to_first_show_note"))}</div></div>
