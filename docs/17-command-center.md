@@ -104,6 +104,31 @@ from anywhere, including the GitHub web editor, it's a remote kill switch. This 
 `state_root` and the engine falls back to the plain local layout. See
 `scripts/command-center/README.md` § "Durable state" for the exact setup.
 
+State-repo git handling lives inside the engine (`lib/gitsync.py`): `cycle.py` pulls
+(rebase + autostash) before each cycle and commit+pushes with rebase-retry after, auto-resolving
+conflicts on regenerated `index.html` files and aborting fail-safe on anything human-authored.
+This makes two writers safe — an always-on loop on one machine and manual `cycle.py` runs from a
+session on another can no longer strand the clone mid-rebase. Opt out per-run with
+`--no-git-sync`.
+
+## The escalation ladder (open problems that can't be silently forgotten)
+
+Briefing `problems[]` entries with `phase: "open"` may carry three extra fields: `owner`,
+`next_check` (a date), and `flag_count`. The dashboard renders them as badges; the engine enforces
+them — when a `next_check` date passes without the problem being re-checked, `cycle.py` fires a
+`ladder_overdue` interrupt (once per title+date; bumping the date re-arms it). The convention the
+fields encode: flag 1 = it's in the briefing; flag 2 = a direct ask has been drafted for the
+owner; flag 3+ = escalate actively. The design premise: an open item flagged three times with no
+movement is a process failure, and the machinery — not anyone's memory — should be what notices.
+
+## Close-out fires itself
+
+When the briefing's `status` becomes `"delivered"`, the next cycle materializes a `closeout.md`
+checklist next to the briefing (credential rotation, publicity/attribution clearance, retro,
+invoice/next-phase, asset archival) and fires a one-time interrupt. Post-delivery work is
+predictable; it shouldn't wait to be remembered. File existence is the dedup, so it fires once
+per project.
+
 ## Guardrails
 
 Every action the loop can take is classified **green** (autonomous), **yellow** (act, then notify),
