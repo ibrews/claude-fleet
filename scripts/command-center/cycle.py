@@ -221,6 +221,46 @@ def run_cycle(instance_path, *, dry_run=False, session="cc-master", kb_root=None
         (briefing or {}).get("phases_updated"),
         len(state["triggers_done"]),
     )
+    # Escalation-ladder enforcement (2026-07-23, Joby retro): open problems carry
+    # owner/next_check/flag_count. The engine — not a session's memory — detects
+    # a blown next_check date and fires an interrupt (once per title+date; bumping
+    # next_check re-arms it). "An item flagged 3x with no movement is a PM
+    # failure" only holds if something un-forgettable notices the date passing.
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    state["ladder_overdue"] = [
+        {"title": p["title"], "owner": p.get("owner", "unassigned"),
+         "next_check": p["next_check"], "flag_count": p.get("flag_count", 1)}
+        for p in (briefing or {}).get("problems", [])
+        if p.get("phase") == "open" and p.get("next_check") and p["next_check"] < today
+    ]
+    # Close-out auto-fire: the moment the briefing says delivered, materialize the
+    # close-out checklist next to it (once — file existence is the dedup) and let
+    # the interrupt layer notify. Predictable post-delivery work (credential
+    # rotation, publicity clearance, retro) starts itself instead of waiting to
+    # be remembered.
+    state["closeout_created"] = None
+    if (briefing or {}).get("status") == "delivered":
+        closeout_path = os.path.join(os.path.dirname(paths["instance_state_dir"]), "closeout.md")
+        if not os.path.exists(closeout_path) and not dry_run:
+            tmpl = os.path.join(kb_root, "resources", "templates",
+                                "project-closeout-checklist-template.md")
+            if os.path.exists(tmpl):
+                with open(tmpl) as f:
+                    content = f.read().replace("<Project>", instance_config["name"])
+                if content.startswith("---"):  # strip the template's own frontmatter
+                    end = content.find("---", 3)
+                    if end != -1:
+                        content = content[end + 3:].lstrip("\n")
+            else:  # public-template installs have no KB resources dir
+                content = (f"# {instance_config['name']} — close-out checklist\n\n"
+                           "- [ ] Rotate/rescind every project credential\n"
+                           "- [ ] Publicity/attribution clearance in writing\n"
+                           "- [ ] Retro written this week (wins AND fails)\n"
+                           "- [ ] Invoice / next-phase conversation triggered\n"
+                           "- [ ] Final assets archived; bots/branches retired\n")
+            with open(closeout_path, "w") as f:
+                f.write(content)
+            state["closeout_created"] = closeout_path
     usage = spawn.read_usage_usd(policy)
     ledger_mod.append(paths["ledger"], {
         "event": "reconcile",

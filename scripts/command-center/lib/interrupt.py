@@ -121,6 +121,30 @@ def evaluate(state, seen, ledger_path, policy):
                 "message": f'[{state["instance"]}] BUDGET at {budget_pct}% of daily cycle cap (threshold {threshold}%)',
             })
 
+    # LADDER-OVERDUE — an open problem's next_check date has passed with no
+    # session having re-checked it. Fires once per (title, next_check); a session
+    # that re-checks bumps next_check (and maybe flag_count), re-arming this.
+    for p in state.get("ladder_overdue", []):
+        key = f'{p["title"]}:{p["next_check"]}'
+        if key not in seen.setdefault("ladder_overdue", []):
+            seen["ladder_overdue"].append(key)
+            events.append({
+                "condition": "ladder_overdue",
+                "message": (f'[{state["instance"]}] OVERDUE: "{p["title"]}" (owner: {p["owner"]}, '
+                            f'flagged ×{p["flag_count"]}) was due a re-check {p["next_check"]} — '
+                            f'escalate per the ladder or bump next_check with a reason'),
+            })
+
+    # CLOSEOUT — cycle.py just materialized the close-out checklist (delivered
+    # status observed for the first time). File existence is the dedup upstream.
+    if state.get("closeout_created"):
+        events.append({
+            "condition": "closeout",
+            "message": (f'[{state["instance"]}] DELIVERED — close-out checklist created at '
+                        f'{state["closeout_created"]}: credentials rotation, publicity clearance, '
+                        f'retro. Work it this week while goodwill is peak.'),
+        })
+
     return events
 
 

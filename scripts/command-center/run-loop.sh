@@ -47,17 +47,28 @@ SLEEP_SECONDS="${CC_CYCLE_SECONDS:-1800}"   # matches policy.json's cycle_interv
 echo "[run-loop] starting — instance=$INSTANCE state_root=$STATE_ROOT interval=${SLEEP_SECONDS}s"
 
 sync_state_repo() {  # $1 = pull|push
+  # Delegates to lib/gitsync.py (2026-07-23) — the previous bare
+  # `pull --rebase || warn` left the clone MID-REBASE on any conflict and the
+  # push had no rejection retry; every two-writer collision (loop vs. a manual
+  # cycle.py run elsewhere) then needed a human to untangle a detached HEAD.
+  # gitsync auto-resolves conflicts on regenerated index.html files, aborts
+  # fail-safe on anything else, self-heals leftover mid-rebase state, and
+  # rebase-retries rejected pushes.
   [ -d "$STATE_ROOT/.git" ] || { echo "[run-loop] WARNING: $STATE_ROOT is not a git clone — state is NOT being backed up"; return 0; }
-  if [ "$1" = "pull" ]; then
-    git -C "$STATE_ROOT" pull --rebase --quiet || echo "[run-loop] WARNING: state repo pull failed"
-  else
-    git -C "$STATE_ROOT" add -A
-    if ! git -C "$STATE_ROOT" diff --cached --quiet; then
-      git -C "$STATE_ROOT" commit -q -m "cycle: $(date -u +%Y-%m-%dT%H:%M:%SZ) ($(hostname -s))" \
-        && git -C "$STATE_ROOT" push --quiet || echo "[run-loop] WARNING: state repo push failed — will retry next cycle"
-    fi
-  fi
+  python3 - "$1" "$STATE_ROOT" <<'PYEOF' || echo "[run-loop] WARNING: state repo $1 failed — will retry next cycle"
+import sys, os, time
+sys.path.insert(0, os.path.join(os.environ["ENGINE_DIR"], "lib"))
+import gitsync
+mode, root = sys.argv[1], sys.argv[2]
+if mode == "pull":
+    ok = gitsync.pull(root)
+else:
+    stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    ok = gitsync.commit_push(root, f"cycle: {stamp} ({os.uname().nodename.split('.')[0]})")
+sys.exit(0 if ok else 1)
+PYEOF
 }
+export ENGINE_DIR
 
 while true; do
   # Pull both repos so the cycle reconciles the latest committed reality:

@@ -1,6 +1,6 @@
 """Safe git sync for the command-center state repo.
 
-Why this exists (2026-07-23): two writers — the always-on run-loop
+Why this exists (2026-07-23, Joby retro): two writers — the always-on run-loop
 host and any interactive PM session running cycle.py by hand — kept colliding
 on the state repo. run-loop.sh's bare `git pull --rebase || warn` would leave
 the clone MID-REBASE (detached HEAD) on conflict and carry on; pushes had no

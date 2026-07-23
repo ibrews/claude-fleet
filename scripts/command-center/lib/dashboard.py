@@ -501,9 +501,26 @@ def render(state, briefing, ledger_summary):
     # ---- problems ----
     problems_html = ""
     if b.get("problems"):
+        import time as _time
+        _today = _time.strftime("%Y-%m-%d", _time.gmtime())
+
+        def _ladder_badge(p):
+            # Escalation-ladder fields on open problems (2026-07-23): the ladder
+            # only works if owner/date/flag-count are VISIBLE, not buried in JSON.
+            if p.get("phase") != "open":
+                return ""
+            bits = [f'owner: {_e(p.get("owner", "unassigned"))}']
+            nc = p.get("next_check")
+            if nc:
+                overdue = nc < _today
+                bits.append(f'next check: {_e(nc)}' + (' ⚠ OVERDUE' if overdue else ''))
+            fc = p.get("flag_count", 1)
+            bits.append(f'flagged ×{fc}' + (' ⚠' if fc >= 3 else ''))
+            return f'<br><small style="opacity:.75">{" · ".join(bits)}</small>'
+
         items = "".join(
             f'<li><span class="who">{_e(p.get("phase", "?"))}</span>'
-            f'<span class="what"><b>{_e(p["title"])}</b> — {_e(p["detail"])}</span></li>'
+            f'<span class="what"><b>{_e(p["title"])}</b> — {_e(p["detail"])}{_ladder_badge(p)}</span></li>'
             for p in b["problems"]
         )
         problems_html = _sec("Biggest unsolved problems",
