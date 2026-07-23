@@ -168,7 +168,7 @@ See `docs/13-model-routing.md` for full examples and curl commands.
 When multiple machines or sessions might work in parallel:
 
 - **Session board:** Machines announce themselves via `session-board.sh heartbeat <slug> -S <status> -w "<doing>"` so others know what's running. Run `session-board.sh board` to see who's active. Entries stale after 15 minutes of no heartbeat.
-- **Inbox claim:** Before starting an inbox item, claim it: `inbox-claim.sh triggers/<slug>.md`. This stamps `in_progress` + your PID so sibling sessions skip it. Release with `inbox-claim.sh triggers/<slug>.md done`.
+- **Inbox claim:** Before starting an inbox item, claim it: `inbox-claim.sh triggers/<slug>.md`. This stamps `in_progress` + your PID so sibling sessions skip it. Release with `inbox-claim.sh triggers/<slug>.md done`. If a task is waiting on a human instead of abandoned, use `status: blocked` + `blocked_on:` — the inbox hook suppresses `blocked` items instead of nagging them as abandoned claims.
 - **Git isolation:** Two sessions on the same repo → each gets its own branch via `git worktree add ../<slug> -b <branch>`. Never two sessions committing to one branch.
 
 See `docs/14-concurrent-sessions.md` for full details.

@@ -14,6 +14,11 @@
 #   inbox-claim.sh <trigger.md> done      # release → status: completed (+completed_at)
 #   inbox-claim.sh <trigger.md> release   # hand back → status: pending
 #
+# This script never sets status: blocked — that's a deliberate, human-directed edit (see
+# docs/05-inbox-system.md § Task lifecycle v2), not something claim/done/release do. If it runs
+# on a trigger that WAS blocked, it clears the now-stale `blocked_on:` field so the frontmatter
+# doesn't contradict itself; it never touches `tier:` or `done_when:`, which are fixed at creation.
+#
 # Then commit: cd ~/knowledge && git add triggers/ && git commit -m '...' && git push
 
 set -euo pipefail
@@ -48,8 +53,17 @@ rt="$(durable_pid)"
 
 # Rewrite the frontmatter in one awk pass: replace known fields if present, append the claim
 # fields inside the frontmatter if missing (older triggers predate claimed_pid/claimed_at).
+#
+# `tier:` and `done_when:` are never touched here — they're set once at trigger creation and stay
+# fixed for the trigger's life, no matter how many times it's claimed/released/completed.
+# `blocked_on:` IS touched, but only to clear it: none of this script's verbs (claim/done/release)
+# ever set status to "blocked" — blocking is a deliberate, human-directed edit, not something this
+# script does — so if a trigger arrives here with status: blocked, it's being moved OUT of that
+# state, and a stale blocked_on left behind would contradict the new status. Clearing it keeps the
+# frontmatter internally consistent instead of showing e.g. "status: completed" next to a
+# leftover "blocked_on: waiting on Alex to plug in the headset".
 awk -v st="$newstatus" -v who="$MACHINE" -v pid="$rt" -v ts="$now" -v verb="$verb" '
-  BEGIN { fm=0; ds=0; dby=0; dpid=0; dat=0; dcomp=0 }
+  BEGIN { fm=0; ds=0; dby=0; dpid=0; dat=0; dcomp=0; origstatus="" }
   /^---[[:space:]]*$/ {
     fm++
     if (fm==2) {
@@ -64,7 +78,15 @@ awk -v st="$newstatus" -v who="$MACHINE" -v pid="$rt" -v ts="$now" -v verb="$ver
     }
     print; next
   }
-  fm==1 && /^status:[[:space:]]/        { print "status: " st; ds=1; next }
+  fm==1 && /^status:[[:space:]]/ {
+    line=$0; sub(/^status:[[:space:]]*/,"",line); split(line, parts, /[[:space:]#]/); origstatus=parts[1]
+    print "status: " st; ds=1; next
+  }
+  fm==1 && /^blocked_on:/ {
+    if (origstatus=="blocked") print "blocked_on: \"\"  # cleared by inbox-claim.sh — no longer blocked"
+    else print
+    next
+  }
   fm==1 && /^claimed_by:/   { if (verb=="claim") { print "claimed_by: " who; dby=1 } else print; next }
   fm==1 && /^claimed_pid:/  { if (verb=="claim") { print "claimed_pid: " pid; dpid=1 } else print; next }
   fm==1 && /^claimed_at:/   { if (verb=="claim") { print "claimed_at: " ts; dat=1 } else print; next }

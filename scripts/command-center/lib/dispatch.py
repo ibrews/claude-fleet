@@ -31,12 +31,15 @@ source: command-center-orchestrator
 target: {target}
 priority: {priority}
 status: {status}
+blocked_on:
+tier: {tier}
 claimed_by:
 claimed_pid:
 claimed_at:
 completed_at:
 inbox_file:
 inbox_line:
+done_when: "{done_when}"
 prior_art: "{prior_art}"
 title: "{title}"
 updated: {created_date}
@@ -61,13 +64,21 @@ tags: [trigger, command-center, {instance}]
 
 
 def create_trigger(triggers_dir, *, trigger_id, target, title, task, done_criteria,
-                    instance, priority="normal", policy, prior_art_summary="", dry_run=False):
+                    instance, priority="normal", policy, prior_art_summary="", tier="approve",
+                    dry_run=False):
     """Writes a real trigger file matching resources/templates/inbox-action-trigger-template.md.
     Returns (classification, path_or_None, reason). Refuses (never writes) if not green,
     AND refuses (separately) if the task is build-shaped and prior_art_summary is empty —
     the prior-art gate. This is the one place PRIOR-art enforcement can happen for
     orchestrator-authored triggers; the PreToolUse hook (prior-art-gate-check.sh) is the
-    backstop for triggers a human or another session writes directly, bypassing this function."""
+    backstop for triggers a human or another session writes directly, bypassing this function.
+
+    `tier` defaults to "approve" (parks the final action for a human) rather than "auto" —
+    an orchestrator being GREEN-classified to autonomously *create* a trigger says nothing
+    about whether an unattended session should later *drain* it; callers that know the work
+    is genuinely safe to finish unattended can pass tier="auto" explicitly. `done_when` is
+    derived from `done_criteria`'s first line — see docs/05-inbox-system.md § Task lifecycle v2
+    for why "committed"/"pushed" doesn't count as an observable done_when."""
     check = prior_art.check_trigger_text(title, task, {"prior_art": prior_art_summary})
     if not check["ok"]:
         return "refused_no_prior_art", None, check["reason"]
@@ -79,10 +90,11 @@ def create_trigger(triggers_dir, *, trigger_id, target, title, task, done_criter
     import time
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     today = time.strftime("%Y-%m-%d", time.gmtime())
+    done_when = done_criteria.strip().split("\n")[0].replace('"', "'")
     content = TRIGGER_TEMPLATE.format(
         id=trigger_id, created=now, target=target, priority=priority,
         status="pending", title=title, created_date=today, instance=instance,
-        task=task, done_criteria=done_criteria,
+        task=task, done_criteria=done_criteria, tier=tier, done_when=done_when,
         prior_art=prior_art_summary or "n/a — not build-shaped",
     )
     path = os.path.join(triggers_dir, f"{trigger_id}.md")

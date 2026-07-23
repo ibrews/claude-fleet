@@ -74,7 +74,10 @@ Actionable tasks require a corresponding tracking file stored under `triggers/<s
 ```yaml
 ---
 title: "Optimize Image Compression Utility"
-status: pending
+status: pending          # pending → in_progress (claimed) → completed | blocked
+blocked_on: ""           # required when blocked — one line: who/what unblocks it
+tier: approve            # auto = drain unattended · approve = parks for a human
+done_when: "compress.py's benchmark reports ≥30% faster than the pre-change baseline"
 claimed_by: ""
 claimed_at: ""
 completed_at: ""
@@ -85,10 +88,21 @@ completed_at: ""
 - Target an execution speedup of at least 30%.
 ```
 
+The claim protocol above is a lock, not a contract — it only stops two sessions from grabbing the
+same item. It says nothing about a task that's waiting on a human, or what "done" actually proves.
+That's what `blocked_on`, `tier`, and `done_when` are for — see
+[docs/05-inbox-system.md § Task lifecycle v2](05-inbox-system.md#task-lifecycle-v2-from-lock-to-contract-2026-07)
+for the full rules.
+
 A task is officially **Done** only when:
 1.  The trigger file status is changed to `completed` and `completed_at` is stamped.
-2.  The corresponding inbox line is struck or marked as resolved.
-3.  Both modifications are committed and pushed in a single, atomic git commit.
+2.  `done_when` observably holds — someone could check the claimed behavior on the real surface.
+3.  The corresponding inbox line is struck or marked as resolved.
+4.  All of the above are committed and pushed in a single, atomic git commit.
+
+A task that's waiting on a human, not abandoned, uses `status: blocked` + `blocked_on` instead of
+sitting `in_progress` with a dead claim — the inbox hook suppresses `blocked` items rather than
+flagging them as "claim abandoned."
 
 ---
 

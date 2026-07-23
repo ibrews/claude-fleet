@@ -102,7 +102,10 @@ For tasks that take more than a few minutes — or that multiple machines might 
 ```yaml
 ---
 title: "Build and upload the weekly report"
-status: pending
+status: pending          # pending → in_progress (claimed) → completed | blocked
+blocked_on: ""           # required when blocked — one line: who/what unblocks it
+tier: auto               # auto = any session may drain unattended · approve = parks for a human
+done_when: "the report file exists on the shared drive and inbox/alpha.md shows the confirmation"
 claimed_by: ""
 claimed_at: ""
 completed_at: ""
@@ -113,6 +116,9 @@ completed_at: ""
 - Upload to the shared drive
 - Write results back to inbox/alpha.md
 ```
+
+See [§ Task lifecycle v2](#task-lifecycle-v2-from-lock-to-contract-2026-07) below for what each of
+these fields means and the rules that make them safe for unattended sessions.
 
 ## Inbox Claim Protocol
 
