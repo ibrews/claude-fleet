@@ -138,3 +138,39 @@ This stamps `status: completed` + `completed_at`, commits, and pushes. Also stri
 **"Done" = both committed in the same push:** the trigger file updated + the inbox line struck. If only one is done, it's not done.
 
 **Liveness checking:** if your session crashes before releasing the claim, other sessions check whether the PID in `claimed_by` is still alive. If the process is gone, the item surfaces as "claim abandoned" and can be safely reclaimed.
+
+## Task lifecycle v2: from lock to contract (2026-07)
+
+The claim protocol above is a *lock* — it stops two sessions grabbing the same item, but it cannot
+express "waiting on a human" or "what does done mean." Field experience made the gap concrete: a
+hardware-gated task nagged every new session for a week as "claim abandoned" because the schema had
+no state for *blocked on a human* — the working session was gone, the work wasn't abandonable, and
+the only vocabulary was pending/in_progress/completed. Trigger frontmatter now supports:
+
+```yaml
+status: pending          # pending → in_progress (claimed) → completed | blocked
+blocked_on: ""           # REQUIRED when blocked — one line: who/what unblocks it
+tier: approve            # auto = any session may claim + drain this unattended
+                         # approve = a session may prep it; the final action parks for the human
+done_when: ""            # REQUIRED — observable behavior on the real surface that proves
+                         # completion ("the deployed page renders X", "the device shows Y").
+                         # NEVER "committed" / "pushed" / "code-complete" — process, not outcome.
+```
+
+Rules that make this safe for autonomy:
+
+- **`blocked` is hook-suppressed.** The inbox check stops nagging, and `blocked_on` tells the human
+  exactly what they owe the queue. An `in_progress` item with a dead claim re-surfaces as "claim
+  abandoned"; a `blocked` item waits quietly. Use the state, not a prose note — a lifecycle you
+  haven't written into the schema is a lifecycle you don't have.
+- **A session may drain `tier: auto` items unattended.** Anything consequential — outward-facing,
+  destructive, judgment-heavy — is `tier: approve` and parks for the human even when an agent
+  *could* do it. This is what makes unattended queue-draining safe rather than reckless.
+- **"Done" means `done_when` observably holds on the deployed thing.** Every task states its
+  `done_when` at creation, in terms of behavior someone could check on the real surface. If you
+  can't write one, the task isn't defined yet. (Adopted after marking things "done" that weren't —
+  repeatedly. It costs nothing and changes everything.)
+
+Credit where due: the lifecycle-as-contract framing was sharpened by a design exchange with another
+Claude-fleet operator (2026-07). Their line is worth keeping: **"a claim protocol is a lock; a
+lifecycle is a contract."**

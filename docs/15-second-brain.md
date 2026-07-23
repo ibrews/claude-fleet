@@ -157,3 +157,34 @@ Keep your shared KB secure and lean by strictly excluding:
 *   **Ephemeral State:** "Currently working on step 2 of task X." That belongs on your active session/dispatch board, not in permanent documentation.
 *   **Redundant Git Metadata:** Explanations of who changed what or complex file histories. Git log is the source of truth for history.
 *   **Raw Output Bloat:** Do not paste massive command stdout or logs. Distill the lesson down to the core evidence and the fix.
+
+## Memory: per-machine daily digests, and a graveyard
+
+Two practices that keep a long-lived shared brain honest:
+
+**Daily digests with hygiene rules.** `daily/YYYY-MM-DD-<machine>.md` is one digest per machine per
+day, upserted at *checkpoints* — right after "works now / fixed / decided / hit a gotcha" — never
+batched to session end (sessions die; buffered notes die with them). Hygiene rules: record only
+what was non-obvious — corrections, confirmed approaches, failure modes and their fixes — and never
+restate what git history already records. This is how agents survive session death without their
+context.
+
+Daily logs are **append-only**. When later knowledge disproves an old entry, don't rewrite history —
+add an inline marker directly under the stale line so no old log can silently lie to a future reader:
+
+```
+> ⚠️ SUPERSEDED YYYY-MM-DD: <one line: what's now known> — see <canonical path>.
+```
+
+**An explicit graveyard.** Stale context in an agent fleet propagates confidently, and a KB that
+only ever adds has no way to say "this is dead." When a doc is superseded *wholesale* (not just one
+line), `git mv` it into an `_archive/` folder next to where it lived and prepend a tombstone:
+
+```
+> ☠️ ARCHIVED YYYY-MM-DD: <why> — superseded by <path, or "nothing (dead end)">.
+```
+
+The rule that makes the graveyard work: **anything under `_archive/` must never be treated as
+current truth.** Agents read it for history only; if archived content contradicts a live doc, the
+live doc wins with no judgment call. Never archive daily logs (append-only + SUPERSEDED markers) or
+decision records (point-in-time by design) — archive the living docs that stopped being true.
