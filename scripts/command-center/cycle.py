@@ -30,6 +30,7 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import dashboard  # noqa: E402
+import gitsync  # noqa: E402
 import guardrail  # noqa: E402
 import interrupt  # noqa: E402
 import ledger as ledger_mod  # noqa: E402
@@ -125,7 +126,7 @@ def maybe_send_digest(state, seen, ledger_path, policy, fleet_bus_py, session, d
     return {"condition": "digest", "message": body, "classification": cls, "result": reason}
 
 
-def run_cycle(instance_path, *, dry_run=False, session="cc-master", kb_root=None):
+def run_cycle(instance_path, *, dry_run=False, session="cc-master", kb_root=None, git_sync=True):
     # session defaults to "cc-master" (v2): interrupt/digest sends go `--to human`
     # stamped from_session=cc-master, so the operator's Telegram REPLY (tagged #sid=cc-master
     # by the tg-bus bridge) routes back to the live master bus listener instead of
@@ -140,6 +141,14 @@ def run_cycle(instance_path, *, dry_run=False, session="cc-master", kb_root=None
     paths = resolve_paths(instance_config, kb_root)
     # v1 configs may also drop HALT next to instance.json in the KB — keep honoring it.
     paths["halt_candidates"].append(os.path.join(os.path.dirname(os.path.abspath(instance_path)), "HALT"))
+
+    # Sync the state repo HERE, not only in run-loop.sh, so manual/session runs
+    # of cycle.py get the same safety as the always-on loop (two-writer races
+    # and leftover mid-rebase states were hand-fixed every check until
+    # 2026-07-23 — see lib/gitsync.py). Also means a manual run sees a remote
+    # HALT pushed from another machine. --no-git-sync opts out.
+    if git_sync and paths["state_root"]:
+        gitsync.pull(paths["state_root"])
 
     policy = guardrail.load_policy(os.path.join(ENGINE_DIR, "policy.json"))
     briefing = dashboard.load_briefing(paths["briefing"])
@@ -178,6 +187,9 @@ def run_cycle(instance_path, *, dry_run=False, session="cc-master", kb_root=None
         cycles_today = ledger_mod.cycles_today(paths["ledger"])
         dashboard.write(state, briefing, f"{cycles_today} cycles today · HALTED — dispatch paused", paths["dashboard_out"])
         result["state"] = state
+        if git_sync and paths["state_root"] and not dry_run:
+            gitsync.commit_push(paths["state_root"],
+                                f"cycle: {instance_config['name']} halted {state['generated_at']}")
         return result
 
     os.makedirs(paths["instance_state_dir"], exist_ok=True)
@@ -267,6 +279,9 @@ def run_cycle(instance_path, *, dry_run=False, session="cc-master", kb_root=None
 
     # 6. Persist
     ledger_mod.append(paths["ledger"], {"event": "cycle_complete", "budget_pct": budget_pct})
+    if git_sync and paths["state_root"] and not dry_run:
+        gitsync.commit_push(paths["state_root"],
+                            f"cycle: {instance_config['name']} {state['generated_at']}")
     return result
 
 
@@ -277,9 +292,12 @@ if __name__ == "__main__":
     ap.add_argument("--session", default="cc-master",
                     help="sender id for --to human sends; cc-master routes Telegram replies to the master listener")
     ap.add_argument("--kb-root", default=None)
+    ap.add_argument("--no-git-sync", action="store_true",
+                    help="skip the state-repo pull/commit/push around the cycle")
     args = ap.parse_args()
 
-    r = run_cycle(args.instance, dry_run=args.dry_run, session=args.session, kb_root=args.kb_root)
+    r = run_cycle(args.instance, dry_run=args.dry_run, session=args.session, kb_root=args.kb_root,
+                  git_sync=not args.no_git_sync)
     print(json.dumps({k: v for k, v in r.items() if k != "state"}, indent=2))
     if r.get("halted"):
         print(r["message"])
