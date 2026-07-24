@@ -22,10 +22,18 @@ case "$MACHINE_NAME" in
     *)                             INBOX_FILE="inbox/${MACHINE_NAME}.md" ;;
 esac
 
-# classify_trigger <file> → echoes: suppress | flag-pending | flag-stale
+# classify_trigger <file> → echoes: suppress | flag-pending | flag-stale | flag-review
 #   suppress     = completed/done/blocked, OR in_progress with a LIVE or recent (<30m) claim
 #                  → another session is on it (or it's not actionable now) → don't re-flag.
+#                  `blocked` belongs here: it means "waiting on a human/hardware/a window," and
+#                  nagging about it every session is noise the human can't act on mid-queue.
+#                  This is WHY the state exists — see docs/05-inbox-system.md § Task lifecycle v2.
 #   flag-pending = status: pending → normal actionable item.
+#   flag-review  = status: review → work BELIEVED done, awaiting done_when verification or human
+#                  eyes. Deliberately neither suppressed nor treated as an abandoned claim: it is
+#                  surfaced distinctly so someone actually checks done_when on the real surface
+#                  before it becomes "completed." Without this state, a session that finishes work
+#                  must either lie (mark completed unverified) or leave a dead in_progress claim.
 #   flag-stale   = in_progress/claimed but the claimer's process is GONE and the claim is >30m old
 #                  → the working session died without finishing → re-surface so the item isn't lost.
 # Gives the claim a LIVENESS check (a crashed claimant can't suppress an item forever) — same
@@ -36,6 +44,7 @@ classify_trigger() {
   status="$(sed -n 's/^status:[[:space:]]*//p' "$f" 2>/dev/null | head -1 | awk '{print $1}')"
   case "$status" in
     completed|done|blocked|server-validated) echo suppress; return 0 ;;
+    review)                                  echo flag-review; return 0 ;;
     pending|"")                              echo flag-pending; return 0 ;;
   esac
   # in_progress / claimed / other non-pending status → honor the claim, but verify liveness.
@@ -81,13 +90,28 @@ if [ -d "$KB_DIR/triggers" ]; then
     for f in "$KB_DIR/triggers/"*.md; do
         [ -f "$f" ] || continue
         grep -q "target:.*$TRIGGER_NAME" "$f" 2>/dev/null || continue
+        # tier: auto | approve — labeled on every flagged item so a session knows, without opening
+        # the file, whether it may drain the item unattended (auto) or must park the final
+        # outward-facing/destructive/judgment step for a human (approve). Untagged = treat as approve.
+        tier="$(sed -n 's/^tier:[[:space:]]*//p' "$f" 2>/dev/null | head -1 | awk '{print $1}')"
+        tier_label=""
+        [ -n "$tier" ] && tier_label=" [tier: ${tier}]"
+        # done_when is required on new triggers, but pre-existing ones predate it. Rather than
+        # bulk-autofilling (a generated placeholder reads as satisfied while meaning nothing —
+        # the exact failure done_when prevents), flag it on the items someone actually picks up,
+        # so judgment is only spent where work is really happening.
+        dw_label=""
+        grep -q "^done_when:" "$f" 2>/dev/null || dw_label=" ⚠ no done_when — write one (observable behavior on the real surface) BEFORE starting"
         case "$(classify_trigger "$f")" in
             flag-pending)
                 PENDING="${PENDING}
-- [ ] TRIGGER: $(basename "$f") — see triggers/$(basename "$f")" ;;
+- [ ] TRIGGER${tier_label}: $(basename "$f") — see triggers/$(basename "$f")${dw_label}" ;;
             flag-stale)
                 PENDING="${PENDING}
-- [ ] TRIGGER (⚠ claim abandoned — claimer process gone; verify with list_sessions, then re-claim or mark done): $(basename "$f") — see triggers/$(basename "$f")" ;;
+- [ ] TRIGGER${tier_label} (⚠ claim abandoned — claimer process gone; verify with list_sessions, then re-claim or mark done): $(basename "$f") — see triggers/$(basename "$f")${dw_label}" ;;
+            flag-review)
+                PENDING="${PENDING}
+- [ ] TRIGGER${tier_label} (🔍 NEEDS VERIFICATION: work believed done, awaiting done_when check — verify on the real surface before marking completed): $(basename "$f") — see triggers/$(basename "$f")${dw_label}" ;;
             *) : ;;   # suppress: completed / blocked / actively-claimed-and-live → don't nag
         esac
     done
