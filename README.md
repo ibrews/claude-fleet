@@ -337,3 +337,7 @@ The fleet trigger script (`fleet-inbox-check.sh`) SSHes into every machine in pa
 ## License
 
 MIT — built by [Alex Coulombe Presents](https://www.alexcoulombepresents.com)
+
+## Support
+
+If you like seeing this kind of thing get built and shared, [donations are always welcome](https://www.alexcoulombepresents.com/support) — they buy hardware, render time, and the freedom to keep giving most of this away.
