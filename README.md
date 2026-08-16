@@ -252,6 +252,7 @@ git add inbox/ && git commit -m "test: ping beta" && git push
 | [Second Brain](docs/15-second-brain.md) | Building a well-routable shared knowledge base |
 | [Session Bus](docs/16-session-bus.md) | Real-time session-to-session messaging — a zero-dependency alternative to waiting for the next session start |
 | [Fleet Hive](docs/18-fleet-hive.md) | LiteLLM gateway + parallel orchestrator — one endpoint for every model you have keys for, fan-out calls, and a cross-family judge panel |
+| [Resource Reaper Pattern](docs/19-resource-reaper-pattern.md) | Safely cleaning up idle per-task resources (worktrees, sims, containers) without deleting live work |
 
 ## Try It — Fleet Commander
 

@@ -115,3 +115,9 @@ Instead, leverage **Git Worktrees** to isolate each session's environment:
 git worktree add ../slug -b branch-name
 ```
 This spawns a completely isolated physical directory linked to a dedicated branch, letting multiple agents compile, test, and run builds in parallel without interference.
+
+Worktrees accumulate the same way any per-task resource does — cheap to create, nothing
+prompts their deletion once the task is done. See
+[docs/19-resource-reaper-pattern.md](19-resource-reaper-pattern.md) for a dry-run-first
+script (`scripts/worktree-reaper.sh`) that safely removes finished worktree directories
+without ever touching a branch or a live session's workspace.
