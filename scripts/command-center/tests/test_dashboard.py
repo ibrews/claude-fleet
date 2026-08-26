@@ -23,10 +23,11 @@ def sample_state():
         "work_item_quality": {"active_count": 1, "valid_count": 1, "issue_count": 0,
                               "error_count": 0, "migration_issue_count": 0,
                               "legacy_count": 0, "issues": []},
-        "delivery_summary": {"red_ci": 1, "dirty_repos": 0, "unintegrated_branches": 0},
+        "delivery_summary": {"red_ci": 1, "dirty_repos": 0, "unintegrated_branches": 0,
+                             "local_unavailable": 0},
         "delivery": {"enabled": True, "repositories": [{
             "name": "Demo", "github": "owner/repo", "path": "/tmp/demo", "dirty": False,
-            "unintegrated_branches": [], "source": "local Git snapshot",
+            "available": True, "unintegrated_branches": [], "source": "local Git snapshot",
             "ci": {"status": "red", "source": "GitHub Actions", "workflows": [{}],
                    "red": [{"workflowName": "Tests", "url": "https://example.com/run"}], "error": ""},
         }]},
@@ -63,6 +64,18 @@ class DashboardTests(unittest.TestCase):
         output = dashboard.render_index(instances)
         self.assertIn("<b>1</b> need the operator", output)
         self.assertIn("<b>1</b> blocked tickets", output)
+
+    def test_unavailable_local_repo_is_an_explicit_host_gap(self):
+        state = sample_state()
+        repo = state["delivery"]["repositories"][0]
+        repo.update({"available": False, "error": "checkout not present on this host"})
+        state["delivery_summary"]["local_unavailable"] = 1
+        output = dashboard.render_index([{
+            "name": "demo", "description": "Demo", "workers": 0,
+            "briefing": {}, "state": state, "delivery": state["delivery"],
+        }])
+        self.assertIn("host gap", output)
+        self.assertIn("checkout not present on this host", output)
 
 
 if __name__ == "__main__":

@@ -424,6 +424,14 @@ def _machine_cockpit_html(state):
             f'{(" · " + red_links) if red_links else ""}'
             f'{(" · " + _e(ci.get("error"))) if ci.get("error") else ""}</span></span></li>'
         )
+        if not repo.get("available"):
+            integration_items += (
+                f'<li><span class="who">unavailable</span><span class="what"><b>{_e(repo.get("name"))}</b> '
+                f'local Git telemetry is unavailable on this host'
+                f'<span class="item-detail">{_e(repo.get("path"))} · '
+                f'{_e(repo.get("error") or "checkout unavailable")} · {_e(repo.get("source"))}</span></span></li>'
+            )
+            continue
         if repo.get("dirty"):
             integration_items += (
                 f'<li><span class="who">dirty</span><span class="what"><b>{_e(repo.get("name"))}</b> '
@@ -456,13 +464,14 @@ def _machine_cockpit_html(state):
   <span><b>{quality.get('migration_issue_count', 0)}</b> migration warnings</span>
   <span><b>{len(needs)}</b> need the operator</span>
   <span><b>{delivery_summary.get('red_ci', 0)}</b> red CI</span>
+  <span><b>{delivery_summary.get('local_unavailable', 0)}</b> local checks unavailable</span>
   <span><b>{delivery_summary.get('dirty_repos', 0)}</b> dirty repos</span>
   <span><b>{delivery_summary.get('unintegrated_branches', 0)}</b> unintegrated branches</span>
 </div>"""
     body = f"""{stats}<div class="cockpit-grid" style="margin-top:16px">
   <div class="panel{' attention' if needs else ''}"><h3>Needs the operator <span class="fact-label">machine fact</span></h3><p class="sub">explicit human gates and approval waits</p><ul class="clean">{needs_items}</ul></div>
   <div class="panel{' attention' if delivery_summary.get('red_ci') else ''}"><h3>Verification &amp; CI <span class="fact-label">machine fact</span></h3><p class="sub">latest result per configured workflow</p><ul class="clean">{ci_items}</ul></div>
-  <div class="panel{' attention' if delivery_summary.get('dirty_repos') or delivery_summary.get('unintegrated_branches') else ' good'}"><h3>Unintegrated work <span class="fact-label">machine fact</span></h3><p class="sub">local Git snapshot; branches with commits absent from the default branch</p><ul class="clean">{integration_items}</ul></div>
+  <div class="panel{' attention' if delivery_summary.get('dirty_repos') or delivery_summary.get('unintegrated_branches') or delivery_summary.get('local_unavailable') else ' good'}"><h3>Unintegrated work <span class="fact-label">machine fact</span></h3><p class="sub">local Git snapshot; unavailable checkouts are explicit, never treated as clean</p><ul class="clean">{integration_items}</ul></div>
   <div class="panel{' attention' if quality.get('error_count') else ''}"><h3>Ticket integrity <span class="fact-label">machine fact</span></h3><p class="sub">owner · definition of done · verification · blocker follow-up</p><ul class="clean">{issue_items}</ul></div>
 </div>"""
     return _sec("Delivery cockpit", body,
@@ -741,6 +750,7 @@ def render_index(instances):
     blocked_by_ticket = {}
     red_ci = []
     unintegrated = []
+    local_unavailable = []
     done_by_ticket = {}
     ticket_issue_keys = set()
 
@@ -767,6 +777,8 @@ def render_index(instances):
                 red_ci.append((inst, repo))
             if repo.get("dirty") or repo.get("unintegrated_branches"):
                 unintegrated.append((inst, repo))
+            if not repo.get("available"):
+                local_unavailable.append((inst, repo))
 
     needs_human = list(needs_by_ticket.values())
     blocked = list(blocked_by_ticket.values())
@@ -823,6 +835,13 @@ def render_index(instances):
             f'<b>{_e(inst["name"])}</b></a> — {_e(repo.get("name"))}'
             f'<span class="item-detail">{_e(" · ".join(details))} · {_e(repo.get("source"))}</span></span></li>'
         )
+    for inst, repo in local_unavailable[:8]:
+        risk_rows += (
+            f'<li><span class="who">host gap</span><span class="what"><a href="{project_link(inst)}">'
+            f'<b>{_e(inst["name"])}</b></a> — {_e(repo.get("name"))}'
+            f'<span class="item-detail">{_e(repo.get("path"))} · '
+            f'{_e(repo.get("error") or "local checkout unavailable on collector host")}</span></span></li>'
+        )
     risk_rows = risk_rows or '<li><span class="what">no configured delivery risk detected</span></li>'
 
     done_html = "".join(
@@ -841,13 +860,14 @@ def render_index(instances):
   <span><b>{len(blocked)}</b> blocked tickets</span>
   <span><b>{len(red_ci)}</b> repos with red CI</span>
   <span><b>{len(unintegrated)}</b> repos with unintegrated work</span>
+  <span><b>{len(local_unavailable)}</b> local checks unavailable</span>
   <span><b>{ticket_errors}</b> ticket errors</span>
   <span><b>{migration_warnings}</b> migration warnings</span>
 </div>
 <div class="cockpit-grid" style="margin-top:20px">
   <div class="panel{' attention' if needs_human else ''}"><h3>Needs the operator <span class="fact-label">machine fact</span></h3><p class="sub">decisions and human gates only</p><ul class="clean">{needs_html}</ul></div>
   <div class="panel"><h3>Live operations <span class="fact-label">machine fact</span></h3><p class="sub">fresh heartbeat + live process; duplicate sessions collapsed</p><ul class="clean">{active_html}</ul></div>
-  <div class="panel{' attention' if red_ci or blocked or unintegrated else ' good'}"><h3>Delivery risks <span class="fact-label">machine fact</span></h3><p class="sub">red CI · blocked tickets · dirty or unintegrated Git work</p><ul class="clean">{risk_rows}</ul></div>
+  <div class="panel{' attention' if red_ci or blocked or unintegrated or local_unavailable else ' good'}"><h3>Delivery risks <span class="fact-label">machine fact</span></h3><p class="sub">red CI · blocked tickets · Git risks · unavailable telemetry</p><ul class="clean">{risk_rows}</ul></div>
   <div class="panel"><h3>Recently completed <span class="fact-label">machine fact</span></h3><p class="sub">ticket result; missing evidence is shown, never implied</p><ul class="clean">{done_html}</ul></div>
 </div>"""
 
@@ -860,7 +880,10 @@ def render_index(instances):
         blocked_count = len(state.get("triggers_blocked", []))
         live_count = len(state.get("sessions_live", []))
         issue_count = (state.get("work_item_quality") or {}).get("error_count", 0)
-        attention = need_count + blocked_count + delivery_summary.get("red_ci", 0)
+        attention = (
+            need_count + blocked_count + delivery_summary.get("red_ci", 0)
+            + delivery_summary.get("local_unavailable", 0)
+        )
         if attention:
             health = _pill("blocked", "attention")
         elif live_count:
@@ -878,7 +901,7 @@ def render_index(instances):
   <p class="desc">{_e(inst.get("description") or b.get("north_star") or "No description yet.")}</p>
   {f'<div class="bar live"><i style="width:{pct}%"></i></div><div class="bar-lbl">{pct}% to first-show milestone</div>' if pct is not None else ""}
   {f'<div class="pulse" style="margin-top:12px"><span class="dot"></span> {_e(b.get("live_edge"))}</div>' if b.get("live_edge") else ""}
-  <div class="stat-strip"><span><b>{live_count}</b> live</span><span><b>{need_count}</b> need the operator</span><span><b>{blocked_count}</b> blocked</span><span><b>{delivery_summary.get('red_ci', 0)}</b> red CI</span><span><b>{issue_count}</b> ticket errors</span></div>
+  <div class="stat-strip"><span><b>{live_count}</b> live</span><span><b>{need_count}</b> need the operator</span><span><b>{blocked_count}</b> blocked</span><span><b>{delivery_summary.get('red_ci', 0)}</b> red CI</span><span><b>{delivery_summary.get('local_unavailable', 0)}</b> host gaps</span><span><b>{issue_count}</b> ticket errors</span></div>
   <div class="meta">briefing {briefing_when} <span class="fact-label ai">AI summary</span> · operational state {_ts_span(generated_iso)} <span class="fact-label">machine fact</span></div>
 </a>"""
     if not cards:

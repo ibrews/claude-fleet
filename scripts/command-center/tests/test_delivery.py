@@ -53,6 +53,16 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(len(result["workflows"]), 2)
         self.assertEqual(result["red"][0]["workflowName"], "Tests")
 
+    def test_missing_checkout_is_counted_as_unavailable_not_clean(self):
+        result = delivery.collect({
+            "delivery": {"enabled": True, "repositories": [{
+                "name": "Missing", "path": "/definitely/not/present",
+            }]}
+        })
+        summary = delivery.summarize(result)
+        self.assertEqual(summary["local_unavailable"], 1)
+        self.assertEqual(summary["dirty_repos"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

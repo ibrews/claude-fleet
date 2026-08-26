@@ -79,6 +79,9 @@ briefing. Repository checks are opt-in and never fetch or change refs:
 }
 ```
 
+If a checkout is absent from the machine running the collector, the cockpit shows a **host gap**
+with the missing path. Unavailable telemetry is never treated as a clean repository.
+
 `triggers/*.md` remain the one work queue. New work uses `schema: work-item/v1` and declares an
 explicit `project`, one accountable `owner`, an observable `done_when`, and exact `verification`.
 Review/completed work links `evidence`; blocked work states `blocked_on` and a dated `next_check`.

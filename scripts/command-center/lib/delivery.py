@@ -193,6 +193,7 @@ def summarize(delivery_state):
     return {
         "red_ci": sum(repo.get("ci", {}).get("status") == "red" for repo in repos),
         "ci_unavailable": sum(repo.get("ci", {}).get("status") == "unavailable" for repo in repos),
+        "local_unavailable": sum(not repo.get("available") for repo in repos),
         "dirty_repos": sum(bool(repo.get("dirty")) for repo in repos),
         "unintegrated_branches": sum(len(repo.get("unintegrated_branches", [])) for repo in repos),
         "open_pull_requests": sum(len(repo.get("pull_requests", [])) for repo in repos),
