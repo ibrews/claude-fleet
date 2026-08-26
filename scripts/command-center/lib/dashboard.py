@@ -160,7 +160,14 @@ footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--border-soft);
 .haq-why{margin:0 0 10px;font-size:13px;color:var(--ink-dim)}
 .haq-steps{margin:0 0 12px;padding-left:22px;color:var(--ink-dim);font-size:13px;display:grid;gap:6px}
 .haq-cmd{margin:0;background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--ink);overflow-x:auto;white-space:pre-wrap;word-break:break-word}
+.fact-label{display:inline-flex;font-family:ui-monospace,monospace;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--gel);border:1px solid color-mix(in srgb,var(--gel) 30%,transparent);border-radius:5px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+.fact-label.ai{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 36%,transparent)}
+.item-detail{display:block;font-family:ui-monospace,monospace;font-size:10.5px;color:var(--ink-faint);margin-top:3px;overflow-wrap:anywhere}
+.attention{border-left:3px solid var(--blocked)}
+.good{border-left:3px solid var(--proven)}
+.cockpit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 @media (max-width:820px){.mast{grid-template-columns:1fr}.mast-meta{text-align:left}.cols,.bigbars{grid-template-columns:1fr}.row{grid-template-columns:26px 1fr}.row>*{grid-column:2}.row .ph-n{grid-column:1}}
+@media (max-width:680px){.cockpit-grid{grid-template-columns:1fr}}
 """
 
 
@@ -382,6 +389,87 @@ def _briefing_age_days(briefing):
         return None
 
 
+def _machine_cockpit_html(state):
+    """Machine-derived delivery facts: tickets, Git integration, and CI."""
+    quality = state.get("work_item_quality") or {}
+    needs = state.get("needs_human") or []
+    delivery_state = state.get("delivery") or {}
+    delivery_summary = state.get("delivery_summary") or {}
+    repos = delivery_state.get("repositories") or []
+
+    needs_items = "".join(
+        f'<li><span class="who">{_e(t.get("priority", "normal"))}</span>'
+        f'<span class="what"><b>{_e(t.get("title") or t.get("id"))}</b>'
+        f'<span class="item-detail">owner: {_e(t.get("owner") or "unassigned")} · '
+        f'blocked on: {_e(t.get("blocked_on") or t.get("acceptance") or "human gate")} · '
+        f'next check: {_e(t.get("next_check") or "not set")} · {_e(t.get("file"))}</span></span></li>'
+        for t in needs
+    ) or '<li><span class="what">nothing currently requires the operator</span></li>'
+
+    ci_items = ""
+    integration_items = ""
+    for repo in repos:
+        ci = repo.get("ci") or {}
+        ci_status = ci.get("status", "unavailable")
+        ci_bucket = {"green": "proven", "running": "live", "red": "blocked"}.get(ci_status, "planned")
+        red_links = " ".join(
+            f'<a href="{_e(run.get("url"))}" target="_blank">{_e(run.get("workflowName") or "workflow")} ↗</a>'
+            for run in ci.get("red", []) if run.get("url")
+        )
+        ci_items += (
+            f'<li><span class="who">{_e(repo.get("github") or repo.get("name"))}</span>'
+            f'<span class="what"><b>CI {_pill(ci_bucket, ci_status)}</b>'
+            f'<span class="item-detail">{_e(ci.get("source") or "GitHub Actions")} · '
+            f'{len(ci.get("workflows", []))} latest workflow result(s)'
+            f'{(" · " + red_links) if red_links else ""}'
+            f'{(" · " + _e(ci.get("error"))) if ci.get("error") else ""}</span></span></li>'
+        )
+        if repo.get("dirty"):
+            integration_items += (
+                f'<li><span class="who">dirty</span><span class="what"><b>{_e(repo.get("name"))}</b> '
+                f'has {repo.get("dirty_entries", 0)} uncommitted entrie(s)'
+                f'<span class="item-detail">{_e(repo.get("path"))} · {_e(repo.get("source"))}</span></span></li>'
+            )
+        for branch in repo.get("unintegrated_branches", []):
+            integration_items += (
+                f'<li><span class="who">{branch.get("unique_commits", 0)} commit(s)</span>'
+                f'<span class="what"><b>{_e(branch.get("branch"))}</b> is not integrated into the local default-branch snapshot'
+                f'<span class="item-detail">{_e(repo.get("name"))} · upstream: '
+                f'{_e(branch.get("upstream") or "none")} · last commit: {_e(branch.get("committed_at"))}</span></span></li>'
+            )
+    if not ci_items:
+        ci_items = '<li><span class="what">repository delivery tracking is not enabled for this project</span></li>'
+    if not integration_items:
+        integration_items = '<li><span class="what">no dirty checkout or unintegrated local branch detected</span></li>'
+
+    issue_items = "".join(
+        f'<li><span class="who">{_e(issue.get("severity"))}</span>'
+        f'<span class="what"><b>{_e(issue.get("id"))}</b> — {_e(issue.get("message"))}'
+        f'<span class="item-detail">{_e(issue.get("file"))}</span></span></li>'
+        for issue in (quality.get("issues") or [])[:12]
+    ) or '<li><span class="what">all active tickets satisfy the current contract</span></li>'
+
+    stats = f"""
+<div class="stat-strip">
+  <span><b>{quality.get('active_count', 0)}</b> active tickets</span>
+  <span><b>{quality.get('error_count', 0)}</b> ticket errors</span>
+  <span><b>{quality.get('migration_issue_count', 0)}</b> migration warnings</span>
+  <span><b>{len(needs)}</b> need the operator</span>
+  <span><b>{delivery_summary.get('red_ci', 0)}</b> red CI</span>
+  <span><b>{delivery_summary.get('dirty_repos', 0)}</b> dirty repos</span>
+  <span><b>{delivery_summary.get('unintegrated_branches', 0)}</b> unintegrated branches</span>
+</div>"""
+    body = f"""{stats}<div class="cockpit-grid" style="margin-top:16px">
+  <div class="panel{' attention' if needs else ''}"><h3>Needs the operator <span class="fact-label">machine fact</span></h3><p class="sub">explicit human gates and approval waits</p><ul class="clean">{needs_items}</ul></div>
+  <div class="panel{' attention' if delivery_summary.get('red_ci') else ''}"><h3>Verification &amp; CI <span class="fact-label">machine fact</span></h3><p class="sub">latest result per configured workflow</p><ul class="clean">{ci_items}</ul></div>
+  <div class="panel{' attention' if delivery_summary.get('dirty_repos') or delivery_summary.get('unintegrated_branches') else ' good'}"><h3>Unintegrated work <span class="fact-label">machine fact</span></h3><p class="sub">local Git snapshot; branches with commits absent from the default branch</p><ul class="clean">{integration_items}</ul></div>
+  <div class="panel{' attention' if quality.get('error_count') else ''}"><h3>Ticket integrity <span class="fact-label">machine fact</span></h3><p class="sub">owner · definition of done · verification · blocker follow-up</p><ul class="clean">{issue_items}</ul></div>
+</div>"""
+    return _sec("Delivery cockpit", body,
+                note="operational facts · every claim links to a ticket, Git state, or CI run",
+                open_=True, updated_iso=state.get("generated_at"))
+
+
 def render(state, briefing, ledger_summary):
     generated_iso = _now_iso()
     b = briefing or {}
@@ -438,6 +526,7 @@ def render(state, briefing, ledger_summary):
 
     # ---- waiting on you (human action queue) ----
     haq_html = _human_action_queue_html(b)
+    machine_cockpit_html = _machine_cockpit_html(state)
 
     # ---- recommendations ----
     recs_html = ""
@@ -636,7 +725,7 @@ def render(state, briefing, ledger_summary):
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{_e(name)} — Command Center</title>
 <style>{CSS}</style></head><body><div class="wrap">
-{mast}{glance}{haq_html}{hint}
+{mast}{glance}{machine_cockpit_html}{haq_html}{hint}
 {recs_html}{phases_html}{topics_html}{problems_html}{timeline_html}{mech_html}{links_html}
 <footer><span>{_e(name)} — Command Center · <a href="../../index.html">all projects</a></span>
 <span>briefing: AI-authored at checkpoints · live state: every cycle · {_e(ledger_summary)}</span></footer>
@@ -644,11 +733,140 @@ def render(state, briefing, ledger_summary):
 
 
 def render_index(instances):
-    """The /command-center landing page: every project that has a command center."""
+    """Fleet-wide delivery cockpit plus the per-project briefing cards."""
     generated_iso = _now_iso()
+    live_seen = set()
+    active_work = []
+    needs_by_ticket = {}
+    blocked_by_ticket = {}
+    red_ci = []
+    unintegrated = []
+    done_by_ticket = {}
+    ticket_issue_keys = set()
+
+    for inst in instances:
+        state = inst.get("state") or {}
+        for session in state.get("sessions_live", []):
+            key = (session.get("machine"), session.get("slug"))
+            if key in live_seen:
+                continue
+            live_seen.add(key)
+            active_work.append((inst, session))
+        for item in state.get("needs_human", []):
+            needs_by_ticket.setdefault(item.get("file") or item.get("id"), (inst, item))
+        for item in state.get("triggers_blocked", []):
+            blocked_by_ticket.setdefault(item.get("file") or item.get("id"), (inst, item))
+        for item in state.get("triggers_done", []):
+            done_by_ticket.setdefault(item.get("file") or item.get("id"), (inst, item))
+        for issue in (state.get("work_item_quality") or {}).get("issues", []):
+            ticket_issue_keys.add((
+                issue.get("file"), issue.get("field"), issue.get("message"), issue.get("severity")
+            ))
+        for repo in (inst.get("delivery") or {}).get("repositories", []):
+            if (repo.get("ci") or {}).get("status") == "red":
+                red_ci.append((inst, repo))
+            if repo.get("dirty") or repo.get("unintegrated_branches"):
+                unintegrated.append((inst, repo))
+
+    needs_human = list(needs_by_ticket.values())
+    blocked = list(blocked_by_ticket.values())
+    recently_done = sorted(
+        done_by_ticket.values(),
+        key=lambda pair: pair[1].get("completed_at") or "",
+        reverse=True,
+    )
+    ticket_errors = sum(key[3] == "error" for key in ticket_issue_keys)
+    migration_warnings = sum(key[3] == "warning" for key in ticket_issue_keys)
+
+    def project_link(inst):
+        return f'{_e(inst["name"])}/dashboard/index.html'
+
+    needs_html = "".join(
+        f'<li><span class="who">{_e(inst["name"])}</span><span class="what">'
+        f'<a href="{project_link(inst)}"><b>{_e(item.get("title") or item.get("id"))}</b></a>'
+        f'<span class="item-detail">owner: {_e(item.get("owner") or "unassigned")} · '
+        f'blocked on: {_e(item.get("blocked_on") or item.get("acceptance") or "human gate")} · '
+        f'next check: {_e(item.get("next_check") or "not set")}</span></span></li>'
+        for inst, item in needs_human[:12]
+    ) or '<li><span class="what">nothing currently requires the operator</span></li>'
+
+    active_html = "".join(
+        f'<li><span class="who">{_e(session.get("machine"))}</span><span class="what">'
+        f'<a href="{project_link(inst)}"><b>{_e(inst["name"])}</b></a> — '
+        f'{_e(session.get("doing") or session.get("slug"))}'
+        f'<span class="item-detail">heartbeat age: {_e(session.get("heartbeat_age_min"))}m · '
+        f'status: {_e(session.get("status"))}</span></span></li>'
+        for inst, session in active_work[:16]
+    ) or '<li><span class="what">no fresh, pid-alive project sessions</span></li>'
+
+    risk_rows = ""
+    for inst, repo in red_ci:
+        risk_rows += (
+            f'<li><span class="who">red CI</span><span class="what"><a href="{project_link(inst)}">'
+            f'<b>{_e(inst["name"])}</b></a> — {_e(repo.get("github") or repo.get("name"))}'
+            f'<span class="item-detail">{len((repo.get("ci") or {}).get("red", []))} failing latest workflow result(s)</span></span></li>'
+        )
+    for inst, item in blocked[:8]:
+        risk_rows += (
+            f'<li><span class="who">blocked</span><span class="what"><a href="{project_link(inst)}">'
+            f'<b>{_e(inst["name"])}</b></a> — {_e(item.get("title") or item.get("id"))}'
+            f'<span class="item-detail">{_e(item.get("blocked_on") or "unblock condition missing")}</span></span></li>'
+        )
+    for inst, repo in unintegrated[:8]:
+        details = []
+        if repo.get("dirty"):
+            details.append(f'{repo.get("dirty_entries", 0)} uncommitted entries')
+        if repo.get("unintegrated_branches"):
+            details.append(f'{len(repo["unintegrated_branches"])} unintegrated branches')
+        risk_rows += (
+            f'<li><span class="who">Git</span><span class="what"><a href="{project_link(inst)}">'
+            f'<b>{_e(inst["name"])}</b></a> — {_e(repo.get("name"))}'
+            f'<span class="item-detail">{_e(" · ".join(details))} · {_e(repo.get("source"))}</span></span></li>'
+        )
+    risk_rows = risk_rows or '<li><span class="what">no configured delivery risk detected</span></li>'
+
+    done_html = "".join(
+        f'<li><span class="who">{_e(inst["name"])}</span><span class="what">'
+        f'<a href="{project_link(inst)}"><b>{_e(item.get("title") or item.get("id"))}</b></a>'
+        f'<span class="item-detail">completed: {_e(item.get("completed_at") or "date not recorded")} · '
+        f'evidence: {_e(item.get("evidence") or "not linked")}</span></span></li>'
+        for inst, item in recently_done[:12]
+    ) or '<li><span class="what">no completed tickets matched current project instances</span></li>'
+
+    cockpit = f"""
+<div class="stat-strip">
+  <span><b>{len(instances)}</b> visible projects</span>
+  <span><b>{len(active_work)}</b> live sessions</span>
+  <span><b>{len(needs_human)}</b> need the operator</span>
+  <span><b>{len(blocked)}</b> blocked tickets</span>
+  <span><b>{len(red_ci)}</b> repos with red CI</span>
+  <span><b>{len(unintegrated)}</b> repos with unintegrated work</span>
+  <span><b>{ticket_errors}</b> ticket errors</span>
+  <span><b>{migration_warnings}</b> migration warnings</span>
+</div>
+<div class="cockpit-grid" style="margin-top:20px">
+  <div class="panel{' attention' if needs_human else ''}"><h3>Needs the operator <span class="fact-label">machine fact</span></h3><p class="sub">decisions and human gates only</p><ul class="clean">{needs_html}</ul></div>
+  <div class="panel"><h3>Live operations <span class="fact-label">machine fact</span></h3><p class="sub">fresh heartbeat + live process; duplicate sessions collapsed</p><ul class="clean">{active_html}</ul></div>
+  <div class="panel{' attention' if red_ci or blocked or unintegrated else ' good'}"><h3>Delivery risks <span class="fact-label">machine fact</span></h3><p class="sub">red CI · blocked tickets · dirty or unintegrated Git work</p><ul class="clean">{risk_rows}</ul></div>
+  <div class="panel"><h3>Recently completed <span class="fact-label">machine fact</span></h3><p class="sub">ticket result; missing evidence is shown, never implied</p><ul class="clean">{done_html}</ul></div>
+</div>"""
+
     cards = ""
     for inst in instances:
         b = inst.get("briefing") or {}
+        state = inst.get("state") or {}
+        delivery_summary = state.get("delivery_summary") or {}
+        need_count = len(state.get("needs_human", []))
+        blocked_count = len(state.get("triggers_blocked", []))
+        live_count = len(state.get("sessions_live", []))
+        issue_count = (state.get("work_item_quality") or {}).get("error_count", 0)
+        attention = need_count + blocked_count + delivery_summary.get("red_ci", 0)
+        if attention:
+            health = _pill("blocked", "attention")
+        elif live_count:
+            health = _pill("live", "active")
+        else:
+            health = _pill("planned", "quiet")
         pr = b.get("progress") or {}
         pct = pr.get("to_first_show_pct")
         briefing_ts = b.get("updated_at", "")
@@ -656,11 +874,12 @@ def render_index(instances):
         cards += f"""
 <a class="icard" href="{_e(inst["name"])}/dashboard/index.html">
   <button class="copylink" type="button" data-cc-name="{_e(inst["name"])}" onclick="copyCCLink(event, this)">🔗 Copy link</button>
-  <h2>{_e(inst["name"].replace("-", " ").title())}</h2>
+  <h2>{_e(inst["name"].replace("-", " ").title())} {health}</h2>
   <p class="desc">{_e(inst.get("description") or b.get("north_star") or "No description yet.")}</p>
   {f'<div class="bar live"><i style="width:{pct}%"></i></div><div class="bar-lbl">{pct}% to first-show milestone</div>' if pct is not None else ""}
   {f'<div class="pulse" style="margin-top:12px"><span class="dot"></span> {_e(b.get("live_edge"))}</div>' if b.get("live_edge") else ""}
-  <div class="meta">briefing {briefing_when} · {inst.get("workers", 0)} tracked workers</div>
+  <div class="stat-strip"><span><b>{live_count}</b> live</span><span><b>{need_count}</b> need the operator</span><span><b>{blocked_count}</b> blocked</span><span><b>{delivery_summary.get('red_ci', 0)}</b> red CI</span><span><b>{issue_count}</b> ticket errors</span></div>
+  <div class="meta">briefing {briefing_when} <span class="fact-label ai">AI summary</span> · operational state {_ts_span(generated_iso)} <span class="fact-label">machine fact</span></div>
 </a>"""
     if not cards:
         cards = '<div class="panel"><p class="sub">No instances found. Add projects/&lt;name&gt;/command-center/instance.json in the KB.</p></div>'
@@ -670,9 +889,11 @@ def render_index(instances):
 <style>{CSS}</style></head><body><div class="wrap">
 <header class="mast"><div>
   <p class="kicker">your org · Fleet</p>
-  <h1>Command <span class="b">Center</span></h1>
-  <p class="northstar">Every large multi-session project with an orchestrator, in one place. Each card is a full program briefing — written so you can walk in cold.</p>
+  <h1>Delivery <span class="b">Cockpit</span></h1>
+  <p class="northstar">Goals, live sessions, tickets, blockers, Git integration, and CI in one place. Machine facts are labeled separately from AI-authored project briefings.</p>
 </div><div class="mast-meta"><div class="now">generated {_ts_span(generated_iso)}</div></div></header>
+{cockpit}
+<div class="sec-head" style="margin-top:34px"><h2>Project briefings</h2><span class="rule"></span><span class="note">open a card for evidence and full context</span></div>
 <div class="card-grid">{cards}</div>
 <footer><span>Command Center · engine: departments/engineering/command-center</span><span>state repo: your-org/command-center-state</span></footer>
 </div>{_TZ_UPGRADE_SCRIPT}{_COPY_LINK_SCRIPT}</body></html>"""

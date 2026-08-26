@@ -58,6 +58,39 @@ The dashboard renders two independent layers, each with its own visible stalenes
 If `briefing.json` doesn't exist yet, the dashboard degrades to mechanical-only with a hint — a
 fresh fork works immediately, the briefing is additive once someone writes one.
 
+### Delivery cockpit and ticket contract
+
+The fleet index starts with a read-only **Delivery Cockpit**: live sessions, explicit human gates,
+blocked tickets, latest GitHub Actions results, dirty checkouts, and local branches whose commits
+are absent from the default branch. Machine facts are labeled separately from the AI-authored
+briefing. Repository checks are opt-in and never fetch or change refs:
+
+```json
+{
+  "delivery": {
+    "enabled": true,
+    "repositories": [{
+      "name": "Your Project",
+      "path": "~/src/your-project",
+      "github": "your-org/your-project",
+      "default_branch": "main"
+    }]
+  }
+}
+```
+
+`triggers/*.md` remain the one work queue. New work uses `schema: work-item/v1` and declares an
+explicit `project`, one accountable `owner`, an observable `done_when`, and exact `verification`.
+Review/completed work links `evidence`; blocked work states `blocked_on` and a dated `next_check`.
+Legacy triggers still render, but gaps appear as migration warnings rather than false red failures.
+The global page deduplicates fuzzy legacy matches by trigger file and routes v1 tickets by their
+explicit project identity. Validate the queue with:
+
+```bash
+python3 scripts/command-center/lib/work_items.py --kb-root /path/to/your/kb
+python3 scripts/command-center/lib/work_items.py --kb-root /path/to/your/kb --strict
+```
+
 ### Phase board sourced from your roadmap doc (no double-editing)
 
 Within the briefing, the **phase board** and the two **progress bigbars** are the kind of numbers

@@ -22,30 +22,12 @@ import re
 import subprocess
 import time
 
-FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n(.*)$", re.DOTALL)
+import work_items
 
 
 def parse_frontmatter(path):
-    """Minimal 'key: value' frontmatter parser — matches the hand-rolled
-    format session-board.sh/trigger files actually use (not full YAML;
-    no nested structures in this repo's frontmatter, so this is sufficient
-    and keeps the dependency footprint at zero, per fleet_bus.py convention)."""
-    with open(path, errors="replace") as f:
-        text = f.read()
-    m = FRONTMATTER_RE.match(text)
-    if not m:
-        return {}, ""
-    fm_text, body = m.group(1), m.group(2)
-    fields = {}
-    for line in fm_text.splitlines():
-        if ":" not in line:
-            continue
-        key, _, val = line.partition(":")
-        val = val.strip()
-        if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
-            val = val[1:-1]
-        fields[key.strip()] = val
-    return fields, body
+    """Compatibility wrapper around the ticket-aware frontmatter parser."""
+    return work_items.parse_frontmatter(path)
 
 
 def matches_keywords(haystack_fields, body, keywords):
@@ -113,26 +95,32 @@ def collect_sessions(kb_root, keywords, stale_min=15):
     return out
 
 
-def collect_triggers(kb_root, keywords):
+def collect_triggers(kb_root, keywords, project_name=""):
     done, in_flight, blocked = [], [], []
     for path in glob.glob(os.path.join(kb_root, "triggers", "*.md")):
         fields, body = parse_frontmatter(path)
         if not fields:
             continue
-        if not matches_keywords(fields, body, keywords):
+        entry = work_items.parse_trigger(path, kb_root)
+        project = entry.get("project", "").strip().lower()
+        instance_name = str(project_name or (keywords[0] if keywords else "")).strip().lower()
+        # New-contract tickets route by explicit project identity. Legacy
+        # tickets retain keyword matching until migrated.
+        if project:
+            if project != instance_name:
+                continue
+        elif not matches_keywords(fields, body, keywords):
             continue
-        entry = {
-            "file": os.path.relpath(path, kb_root),
-            "id": fields.get("id", os.path.basename(path)),
-            "status": fields.get("status", "pending"),
-            "target": fields.get("target", ""),
-            "claimed_by": fields.get("claimed_by", ""),
-            "claimed_at": fields.get("claimed_at", ""),
-            "title": fields.get("title", ""),
-        }
+        # The dashboard/state API should not carry full trigger bodies or a
+        # duplicate raw-field map. Both remain available from the linked file.
+        entry.pop("body", None)
+        entry.pop("fields", None)
+        entry.pop("result", None)
         status = entry["status"]
         if status == "completed":
             done.append(entry)
+        elif status == "cancelled":
+            continue
         elif status == "blocked":
             blocked.append(entry)
         else:
@@ -216,7 +204,9 @@ def build_state(kb_root, instance_config):
     stale_min = instance_config.get("stale_session_minutes", 15)
 
     sessions = collect_sessions(kb_root, keywords, stale_min)
-    t_done, t_in_flight, t_blocked = collect_triggers(kb_root, keywords)
+    t_done, t_in_flight, t_blocked = collect_triggers(
+        kb_root, keywords, instance_config.get("name", "")
+    )
     inbox_items = collect_inbox_items(kb_root, keywords)
 
     stale_claims = [s for s in sessions if s["stale"] or not s["pid_alive"]]
@@ -239,6 +229,9 @@ def build_state(kb_root, instance_config):
     tracked_workers = match_tracked_workers(
         instance_config.get("tracked_workers"), live_sessions, t_in_flight, t_blocked
     )
+    all_tickets = t_done + t_in_flight + t_blocked
+    ticket_quality = work_items.summarize(all_tickets)
+    needs_human = [ticket for ticket in t_in_flight + t_blocked if ticket.get("needs_human")]
 
     return {
         "instance": instance_config["name"],
@@ -250,6 +243,8 @@ def build_state(kb_root, instance_config):
         "triggers_done": t_done,
         "triggers_in_flight": t_in_flight,
         "triggers_blocked": t_blocked,
+        "work_item_quality": ticket_quality,
+        "needs_human": needs_human,
         "inbox_open": [i for i in inbox_items if not i["done"]],
         "inbox_done": [i for i in inbox_items if i["done"]],
     }

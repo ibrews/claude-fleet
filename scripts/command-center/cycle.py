@@ -30,6 +30,7 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import dashboard  # noqa: E402
+import delivery  # noqa: E402
 import gitsync  # noqa: E402
 import guardrail  # noqa: E402
 import interrupt  # noqa: E402
@@ -84,7 +85,13 @@ def resolve_paths(instance_config, kb_root):
 
 
 def discover_instances(kb_root):
-    """Every project with a command center — for the index page."""
+    """Every project with a command center — for the index page.
+
+    Respects "hidden_from_index": true in instance.json — the project's own
+    dashboard still generates normally (its cc-agent loop, briefing, etc. are
+    untouched), it's just left out of the fleet-wide index listing. Added
+    2026-08-04 to keep named client projects out of a more public-facing view
+    without disabling their actual command center."""
     out = []
     for path in sorted(glob.glob(os.path.join(kb_root, "projects", "*", "command-center", "instance.json"))):
         try:
@@ -92,12 +99,21 @@ def discover_instances(kb_root):
                 cfg = json.load(f)
         except (json.JSONDecodeError, OSError):
             continue
+        if cfg.get("hidden_from_index"):
+            continue
         paths = resolve_paths(cfg, kb_root)
+        mechanical = reconcile.build_state(kb_root, cfg)
+        mechanical["generated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        delivery_state = delivery.collect(cfg)
+        mechanical["delivery"] = delivery_state
+        mechanical["delivery_summary"] = delivery.summarize(delivery_state)
         out.append({
             "name": cfg["name"],
             "description": cfg.get("description", ""),
             "workers": len(cfg.get("tracked_workers", [])),
             "briefing": dashboard.load_briefing(paths["briefing"]),
+            "state": mechanical,
+            "delivery": delivery_state,
         })
     return out
 
@@ -183,6 +199,8 @@ def run_cycle(instance_path, *, dry_run=False, session="cc-master", kb_root=None
                                             "workers_killed": killed})
         state = reconcile.build_state(kb_root, instance_config)
         state["generated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        state["delivery"] = delivery.collect(instance_config)
+        state["delivery_summary"] = delivery.summarize(state["delivery"])
         state["workers"] = spawn.summarize(paths["instance_state_dir"])
         cycles_today = ledger_mod.cycles_today(paths["ledger"])
         dashboard.write(state, briefing, f"{cycles_today} cycles today · HALTED — dispatch paused", paths["dashboard_out"])
@@ -201,6 +219,8 @@ def run_cycle(instance_path, *, dry_run=False, session="cc-master", kb_root=None
     # 1. Ingest + 2. Reconcile
     state = reconcile.build_state(kb_root, instance_config)
     state["generated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    state["delivery"] = delivery.collect(instance_config)
+    state["delivery_summary"] = delivery.summarize(state["delivery"])
     # Fold spawn state into the model so the dashboard + MCP see live workers,
     # spawnable candidates, and any proposals awaiting the operator's confirmation.
     state["workers"] = spawn.summarize(paths["instance_state_dir"])

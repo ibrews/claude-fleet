@@ -23,15 +23,20 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 import guardrail  # noqa: E402
 import prior_art  # noqa: E402
+import work_items  # noqa: E402
 
 TRIGGER_TEMPLATE = """---
+schema: work-item/v1
 id: {id}
+project: {instance}
 created: {created}
 source: command-center-orchestrator
 target: {target}
+owner: {owner}
 priority: {priority}
 status: {status}
 blocked_on:
+next_check:
 tier: {tier}
 claimed_by:
 claimed_pid:
@@ -40,6 +45,12 @@ completed_at:
 inbox_file:
 inbox_line:
 done_when: "{done_when}"
+verification: "{verification}"
+evidence:
+repo:
+branch:
+acceptance: {acceptance}
+human_gate: false
 prior_art: "{prior_art}"
 title: "{title}"
 updated: {created_date}
@@ -65,7 +76,7 @@ tags: [trigger, command-center, {instance}]
 
 def create_trigger(triggers_dir, *, trigger_id, target, title, task, done_criteria,
                     instance, priority="normal", policy, prior_art_summary="", tier="approve",
-                    dry_run=False):
+                    verification="", dry_run=False):
     """Writes a real trigger file matching resources/templates/inbox-action-trigger-template.md.
     Returns (classification, path_or_None, reason). Refuses (never writes) if not green,
     AND refuses (separately) if the task is build-shaped and prior_art_summary is empty —
@@ -73,12 +84,9 @@ def create_trigger(triggers_dir, *, trigger_id, target, title, task, done_criter
     orchestrator-authored triggers; the PreToolUse hook (prior-art-gate-check.sh) is the
     backstop for triggers a human or another session writes directly, bypassing this function.
 
-    `tier` defaults to "approve" (parks the final action for a human) rather than "auto" —
-    an orchestrator being GREEN-classified to autonomously *create* a trigger says nothing
-    about whether an unattended session should later *drain* it; callers that know the work
-    is genuinely safe to finish unattended can pass tier="auto" explicitly. `done_when` is
-    derived from `done_criteria`'s first line — see docs/05-inbox-system.md § Task lifecycle v2
-    for why "committed"/"pushed" doesn't count as an observable done_when."""
+    `tier` defaults to approve: creating a ticket can be automatic while its consequential
+    final action remains human-gated. `done_when` and the default verification text are derived
+    from the supplied done criteria so every generated ticket satisfies work-item/v1."""
     check = prior_art.check_trigger_text(title, task, {"prior_art": prior_art_summary})
     if not check["ok"]:
         return "refused_no_prior_art", None, check["reason"]
@@ -91,10 +99,14 @@ def create_trigger(triggers_dir, *, trigger_id, target, title, task, done_criter
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     today = time.strftime("%Y-%m-%d", time.gmtime())
     done_when = done_criteria.strip().split("\n")[0].replace('"', "'")
+    verification_text = (verification or done_criteria).strip().replace("\n", " ").replace('"', "'")
+    owner = target if target not in {"", "any", "?"} else "command-center-orchestrator"
     content = TRIGGER_TEMPLATE.format(
         id=trigger_id, created=now, target=target, priority=priority,
         status="pending", title=title, created_date=today, instance=instance,
-        task=task, done_criteria=done_criteria, tier=tier, done_when=done_when,
+        task=task, done_criteria=done_criteria, tier=tier, owner=owner,
+        done_when=done_when, verification=verification_text,
+        acceptance="human" if tier == "approve" else "auto",
         prior_art=prior_art_summary or "n/a — not build-shaped",
     )
     path = os.path.join(triggers_dir, f"{trigger_id}.md")
@@ -153,8 +165,9 @@ if __name__ == "__main__":
         assert cls == guardrail.GREEN and path and os.path.exists(path)
         with open(path) as f:
             body = f.read()
-        assert body.startswith("---\nid: cc-selftest-2026-07-12\n")
+        assert body.startswith("---\nschema: work-item/v1\nid: cc-selftest-2026-07-12\n")
         assert "status: pending" in body
+        assert not work_items.parse_trigger(path)["schema_issues"]
         print("  -> template shape verified")
 
     cls, msg = decide_spawn(current_workers=0, budget_pct=4.2, worker_name="groom-conform", policy=policy)
