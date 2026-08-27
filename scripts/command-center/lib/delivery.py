@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 
 GITHUB_SLUG_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+HOST_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 RED_CONCLUSIONS = {
     "action_required", "cancelled", "failure", "startup_failure", "stale", "timed_out",
 }
@@ -16,6 +17,26 @@ RED_CONCLUSIONS = {
 
 def _now_iso():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _parse_iso(value):
+    try:
+        parsed = datetime.fromisoformat((value or "").replace("Z", "+00:00"))
+        return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed
+    except (TypeError, ValueError):
+        return None
+
+
+def _age_minutes(value):
+    parsed = _parse_iso(value)
+    if not parsed:
+        return None
+    return max(0, int((datetime.now(timezone.utc) - parsed).total_seconds() / 60))
+
+
+def _age_days(value):
+    minutes = _age_minutes(value)
+    return None if minutes is None else minutes // (24 * 60)
 
 
 def _run(args, *, cwd=None, timeout=10):
@@ -39,6 +60,8 @@ def inspect_local_repo(config):
         "name": config.get("name") or os.path.basename(path) or config.get("github", "repository"),
         "path": path,
         "source": "local Git snapshot (read-only; no fetch)",
+        "telemetry_status": "local",
+        "evidence_host": config.get("host", ""),
         "available": False,
         "as_of": _now_iso(),
         "dirty": False,
@@ -75,6 +98,7 @@ def inspect_local_repo(config):
         result["error"] = f"default branch ref not found: {default_branch}"
         return result
 
+    stale_branch_days = max(1, int(config.get("stale_branch_days", 14)))
     fmt = "%(refname:short)|%(upstream:short)|%(committerdate:iso8601-strict)"
     _, branches, _ = _git(path, "for-each-ref", f"--format={fmt}", "refs/heads/")
     for row in branches.splitlines():
@@ -90,12 +114,15 @@ def inspect_local_repo(config):
         except ValueError:
             unique_commits = 0
         if unique_commits:
+            age_days = _age_days(committed_at)
             result["unintegrated_branches"].append({
                 "branch": name,
                 "unique_commits": unique_commits,
                 "upstream": upstream,
                 "committed_at": committed_at,
                 "no_upstream": not bool(upstream),
+                "age_days": age_days,
+                "stale": age_days is not None and age_days >= stale_branch_days,
             })
     result["unintegrated_branches"].sort(
         key=lambda item: (item["committed_at"], item["branch"]), reverse=True
@@ -148,7 +175,7 @@ def inspect_ci(github_slug):
     return result
 
 
-def inspect_pull_requests(github_slug):
+def inspect_pull_requests(github_slug, stale_days=14):
     if not GITHUB_SLUG_RE.match(github_slug or ""):
         return []
     code, output, _ = _run([
@@ -158,12 +185,46 @@ def inspect_pull_requests(github_slug):
     if code:
         return []
     try:
-        return json.loads(output or "[]")
+        pull_requests = json.loads(output or "[]")
     except json.JSONDecodeError:
         return []
+    for pull_request in pull_requests:
+        age_days = _age_days(pull_request.get("updatedAt"))
+        pull_request["age_days"] = age_days
+        pull_request["stale"] = age_days is not None and age_days >= max(1, int(stale_days))
+    return pull_requests
 
 
-def collect(instance_config):
+def _load_host_report(evidence_root, host):
+    if not evidence_root or not HOST_ID_RE.match(host or ""):
+        return None, "host evidence is not configured"
+    path = os.path.join(os.path.expanduser(evidence_root), "host-evidence", f"{host}.json")
+    try:
+        with open(path) as handle:
+            report = json.load(handle)
+    except FileNotFoundError:
+        return None, f"host report missing: {host}"
+    except (OSError, json.JSONDecodeError) as exc:
+        return None, f"host report unreadable: {exc}"
+    if report.get("schema") != "host-evidence/v1" or report.get("machine") != host:
+        return None, f"host report identity/schema mismatch: {host}"
+    return report, ""
+
+
+def _reported_repo(report, project, config):
+    github = config.get("github", "")
+    name = config.get("name", "")
+    for repository in report.get("repositories", []):
+        if repository.get("project") != project:
+            continue
+        if github and repository.get("github") == github:
+            return repository
+        if not github and repository.get("name") == name:
+            return repository
+    return None
+
+
+def collect(instance_config, evidence_root=None):
     """Collect evidence only for explicitly enabled projects.
 
     Explicit configuration prevents the fleet index from guessing repository
@@ -173,9 +234,36 @@ def collect(instance_config):
     if not config.get("enabled"):
         return {"enabled": False, "repositories": [], "as_of": _now_iso()}
     repositories = []
+    project = instance_config.get("name", "")
+    max_age_minutes = max(1, int(config.get("report_max_age_minutes", 15)))
     for repo_config in config.get("repositories", []):
-        local = inspect_local_repo(repo_config)
+        host = repo_config.get("host", "")
+        report, report_error = _load_host_report(evidence_root, host) if host else (None, "")
+        reported = _reported_repo(report, project, repo_config) if report else None
+        if reported:
+            local = {**inspect_local_repo({}), **reported}
+            report_age = _age_minutes(report.get("generated_at"))
+            stale = report_age is None or report_age > max_age_minutes
+            local.update({
+                "source": f"{host} host report (read-only Git snapshot)",
+                "telemetry_status": "stale" if stale else "fresh",
+                "evidence_host": host,
+                "report_generated_at": report.get("generated_at", ""),
+                "report_age_minutes": report_age,
+                "telemetry_error": (
+                    "host report timestamp is invalid" if report_age is None else
+                    f"host report is {report_age}m old; freshness limit is {max_age_minutes}m"
+                    if stale else ""
+                ),
+            })
+        else:
+            local = inspect_local_repo(repo_config)
+            if host and not local.get("available"):
+                local["telemetry_status"] = "missing"
+                local["evidence_host"] = host
+                local["telemetry_error"] = report_error or f"repository missing from {host} report"
         github = repo_config.get("github", "")
+        stale_pr_days = repo_config.get("stale_pr_days", config.get("stale_pr_days", 14))
         repositories.append({
             **local,
             "github": github,
@@ -183,7 +271,7 @@ def collect(instance_config):
                 "status": "unavailable", "workflows": [], "red": [],
                 "error": "no GitHub repository configured", "as_of": _now_iso(),
             },
-            "pull_requests": inspect_pull_requests(github) if github else [],
+            "pull_requests": inspect_pull_requests(github, stale_pr_days) if github else [],
         })
     return {"enabled": True, "repositories": repositories, "as_of": _now_iso()}
 
@@ -194,7 +282,15 @@ def summarize(delivery_state):
         "red_ci": sum(repo.get("ci", {}).get("status") == "red" for repo in repos),
         "ci_unavailable": sum(repo.get("ci", {}).get("status") == "unavailable" for repo in repos),
         "local_unavailable": sum(not repo.get("available") for repo in repos),
+        "stale_reports": sum(repo.get("telemetry_status") == "stale" for repo in repos),
         "dirty_repos": sum(bool(repo.get("dirty")) for repo in repos),
         "unintegrated_branches": sum(len(repo.get("unintegrated_branches", [])) for repo in repos),
+        "stale_unintegrated_branches": sum(
+            sum(bool(branch.get("stale")) for branch in repo.get("unintegrated_branches", []))
+            for repo in repos
+        ),
         "open_pull_requests": sum(len(repo.get("pull_requests", [])) for repo in repos),
+        "stale_pull_requests": sum(
+            sum(bool(pr.get("stale")) for pr in repo.get("pull_requests", [])) for repo in repos
+        ),
     }

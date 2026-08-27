@@ -152,6 +152,37 @@ footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--border-soft);
 .icard .meta{font-family:ui-monospace,monospace;font-size:11px;color:var(--ink-faint);margin-top:10px}
 .copylink{position:absolute;top:16px;right:16px;font-family:ui-monospace,monospace;font-size:11px;color:var(--ink-dim);padding:5px 10px;border:1px solid var(--border-soft);border-radius:8px;background:var(--surface);cursor:pointer}
 .copylink:hover{color:var(--ink);border-color:var(--border)}
+.tour-trigger{margin-top:12px;border:1px solid color-mix(in srgb,var(--amber) 55%,var(--border));border-radius:8px;background:color-mix(in srgb,var(--amber) 10%,var(--surface));color:var(--amber);padding:8px 11px;font:700 10.5px/1 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.tour-trigger:hover{background:color-mix(in srgb,var(--amber) 17%,var(--surface));color:var(--ink)}
+.tour-trigger:focus-visible,.tour button:focus-visible{outline:2px solid var(--gel);outline-offset:3px}
+.tour{width:min(920px,calc(100vw - 32px));max-height:min(720px,calc(100vh - 32px));padding:0;border:1px solid color-mix(in srgb,var(--amber) 42%,var(--border));border-radius:18px;background:var(--surface);color:var(--ink);box-shadow:0 32px 100px rgba(0,0,0,.62);overflow:hidden}
+.tour::backdrop{background:rgba(12,9,16,.78);backdrop-filter:blur(5px)}
+.tour-shell{background:linear-gradient(135deg,color-mix(in srgb,var(--amber) 4%,var(--surface)),var(--surface) 48%,color-mix(in srgb,var(--gel) 3%,var(--surface)));min-height:570px;display:flex;flex-direction:column}
+.tour-head{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 22px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--ground) 38%,var(--surface))}
+.tour-head h2{margin:2px 0 0;font-size:17px;letter-spacing:-.01em}
+.tour-eyebrow,.tour-coordinate{margin:0;color:var(--amber);font:700 10px/1.3 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.18em;text-transform:uppercase}
+.tour-close{width:34px;height:34px;border:1px solid var(--border);border-radius:50%;background:var(--surface);color:var(--ink-dim);font-size:20px;line-height:1;cursor:pointer}
+.tour-layout{display:grid;grid-template-columns:210px minmax(0,1fr);min-height:500px;flex:1}
+.tour-rail{padding:20px 14px;border-right:1px solid var(--border);background:color-mix(in srgb,var(--ground) 32%,var(--surface))}
+.tour-rail ol{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.tour-step{position:relative;width:100%;display:grid;grid-template-columns:28px 1fr;gap:8px;align-items:center;text-align:left;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--ink-faint);padding:8px;font:600 11px/1.25 ui-monospace,"SF Mono",Menlo,monospace;cursor:pointer}
+.tour-step span{display:grid;place-items:center;width:26px;height:26px;border:1px solid var(--border);border-radius:7px;color:var(--ink-faint);font-size:10px}
+.tour-step[aria-selected="true"]{color:var(--ink);border-color:color-mix(in srgb,var(--amber) 35%,var(--border));background:color-mix(in srgb,var(--amber) 9%,var(--surface))}
+.tour-step[aria-selected="true"] span{color:var(--amber);border-color:var(--amber)}
+.tour-stage{min-width:0;display:flex;flex-direction:column;padding:30px 34px 22px}
+.tour-panel{margin:0;flex:1}
+.tour-panel h3{margin:10px 0 14px;font-size:clamp(24px,4vw,38px);line-height:1.05;letter-spacing:-.035em;max-width:19ch}
+.tour-panel>p:not(.tour-coordinate){max-width:62ch;color:var(--ink-dim);font-size:14px}
+.tour-panel ul{margin:18px 0 0;padding:0;list-style:none;display:grid;gap:10px;max-width:62ch}
+.tour-panel li{position:relative;padding-left:21px;color:var(--ink-dim);font-size:13px}
+.tour-panel li::before{content:"";position:absolute;left:0;top:.65em;width:9px;height:1px;background:var(--amber)}
+.tour-panel strong{color:var(--ink);font-weight:700}
+.tour-callout{margin-top:24px;max-width:64ch;border:1px solid var(--border);border-left:3px solid var(--gel);border-radius:10px;background:color-mix(in srgb,var(--gel) 6%,var(--surface));padding:13px 15px;color:var(--ink-dim);font:11.5px/1.55 ui-monospace,"SF Mono",Menlo,monospace}
+.tour-actions{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;border-top:1px solid var(--border-soft);padding-top:18px;margin-top:24px}
+.tour-actions button{border:1px solid var(--border);border-radius:8px;background:var(--raised);color:var(--ink);padding:9px 13px;font:700 10.5px/1 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.tour-actions button[disabled]{opacity:.35;cursor:default}
+.tour-actions .tour-next{border-color:var(--amber);background:var(--amber);color:#21170a}
+.tour-count{text-align:center;color:var(--ink-faint);font:10.5px/1 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.08em;text-transform:uppercase}
 .haq-grid{display:grid;gap:16px;margin-top:2px}
 .haq-item{border-left:3px solid var(--amber)}
 .haq-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 8px}
@@ -167,7 +198,7 @@ footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--border-soft);
 .good{border-left:3px solid var(--proven)}
 .cockpit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 @media (max-width:820px){.mast{grid-template-columns:1fr}.mast-meta{text-align:left}.cols,.bigbars{grid-template-columns:1fr}.row{grid-template-columns:26px 1fr}.row>*{grid-column:2}.row .ph-n{grid-column:1}}
-@media (max-width:680px){.cockpit-grid{grid-template-columns:1fr}}
+@media (max-width:680px){.cockpit-grid{grid-template-columns:1fr}.card-grid{grid-template-columns:minmax(0,1fr)}.icard{min-width:0}.tour{width:calc(100vw - 12px);max-height:calc(100vh - 12px)}.tour-shell{min-height:0;max-height:calc(100vh - 14px)}.tour-layout{display:flex;flex-direction:column;min-height:0}.tour-rail{padding:10px;border-right:0;border-bottom:1px solid var(--border);overflow-x:auto}.tour-rail ol{display:flex;min-width:max-content}.tour-step{width:43px;grid-template-columns:1fr;padding:6px}.tour-step span{margin:auto}.tour-step b{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.tour-stage{padding:24px 20px 18px;overflow-y:auto}.tour-panel h3{font-size:27px}.tour-head{padding:14px 16px}.tour-actions{position:sticky;bottom:-18px;background:var(--surface);padding:14px 0 2px}}
 """
 
 
@@ -355,6 +386,123 @@ function copyCCLink(evt, btn){
 </script>"""
 
 
+_OPERATOR_TOUR_HTML = """
+<dialog class="tour" id="cc-tour" aria-labelledby="cc-tour-title">
+  <div class="tour-shell">
+    <header class="tour-head">
+      <div><p class="tour-eyebrow">Operations manual · 3 minute circuit</p><h2 id="cc-tour-title">Cockpit walkthrough</h2></div>
+      <button class="tour-close" type="button" data-tour-close aria-label="Close walkthrough">×</button>
+    </header>
+    <div class="tour-layout">
+      <nav class="tour-rail" aria-label="Walkthrough checkpoints"><ol>
+        <li><button class="tour-step" type="button" data-tour-step="0" aria-selected="true"><span>01</span><b>Orient</b></button></li>
+        <li><button class="tour-step" type="button" data-tour-step="1" aria-selected="false"><span>02</span><b>Trust</b></button></li>
+        <li><button class="tour-step" type="button" data-tour-step="2" aria-selected="false"><span>03</span><b>Decide</b></button></li>
+        <li><button class="tour-step" type="button" data-tour-step="3" aria-selected="false"><span>04</span><b>De-risk</b></button></li>
+        <li><button class="tour-step" type="button" data-tour-step="4" aria-selected="false"><span>05</span><b>Verify</b></button></li>
+        <li><button class="tour-step" type="button" data-tour-step="5" aria-selected="false"><span>06</span><b>Operate</b></button></li>
+      </ol></nav>
+      <div class="tour-stage">
+        <section class="tour-panel" data-tour-panel="0" tabindex="-1">
+          <p class="tour-coordinate">01 / Orient</p><h3>This is lean delivery control, not Scrum theater.</h3>
+          <p>The top strip is your thirty-second scan across every visible project. It counts live work, human gates, blocked tickets, CI failures, unintegrated Git work, telemetry gaps, and ticket-contract problems.</p>
+          <div class="tour-callout">Start here. A non-zero number is a reason to inspect—not automatic proof that the project is unhealthy.</div>
+        </section>
+        <section class="tour-panel" data-tour-panel="1" tabindex="-1" hidden>
+          <p class="tour-coordinate">02 / Trust</p><h3>Know which statements are facts.</h3>
+          <p><strong>Machine fact</strong> labels mean the value was deterministically collected from tickets, sessions, Git, CI, or host reports. <strong>AI summary</strong> labels mean an agent wrote the interpretation at a checkpoint.</p>
+          <ul><li>Every fact has a source or freshness timestamp.</li><li>Missing and stale evidence stays visible; it is never converted into a green state.</li><li>Project briefings can lag reality, so their own update time is shown separately.</li></ul>
+        </section>
+        <section class="tour-panel" data-tour-panel="2" tabindex="-1" hidden>
+          <p class="tour-coordinate">03 / Decide</p><h3>“Needs the operator” is the human decision queue.</h3>
+          <p>This panel should contain genuine approvals, choices, credentials, or external gates—not routine agent work. Each item shows its owner, what it is blocked on, and when it should be checked again.</p>
+          <div class="tour-callout">Your job: decide, delegate, or reject. If an agent could safely resolve it, the item does not belong in this queue.</div>
+        </section>
+        <section class="tour-panel" data-tour-panel="3" tabindex="-1" hidden>
+          <p class="tour-coordinate">04 / De-risk</p><h3>Delivery risks show where work can fall off the table.</h3>
+          <ul><li><strong>Red CI</strong> is the latest configured workflow result.</li><li><strong>Blocked</strong> means a ticket cannot advance without a named condition.</li><li><strong>Git</strong> exposes dirty checkouts and branches not integrated into the default branch.</li><li><strong>Stale report / host gap</strong> means the collector cannot prove the remote checkout state.</li></ul>
+          <div class="tour-callout">Host reporters publish read-only Git evidence every five minutes. Reports older than fifteen minutes are visibly stale; old branches and PRs are flagged after fourteen days.</div>
+        </section>
+        <section class="tour-panel" data-tour-panel="4" tabindex="-1" hidden>
+          <p class="tour-coordinate">05 / Verify</p><h3>A ticket closes only with evidence.</h3>
+          <p>The durable queue lives in <strong>triggers/*.md</strong>. A current ticket names its project, one owner, an observable definition of done, and the exact verification to run. Review and completed tickets link the resulting evidence.</p>
+          <ul><li>Open a project card for the full delivery evidence and briefing.</li><li>Use “Recently completed” to confirm the result and evidence survived archival.</li><li>Ticket integrity calls out incomplete contracts instead of silently accepting them.</li></ul>
+        </section>
+        <section class="tour-panel" data-tour-panel="5" tabindex="-1" hidden>
+          <p class="tour-coordinate">06 / Operate</p><h3>Run the same short loop every day.</h3>
+          <ul><li>Check the generated time and evidence freshness.</li><li>Clear genuine human gates in “Needs the operator.”</li><li>Triage red CI, blockers, Git drift, and host gaps.</li><li>Open the affected project card and inspect the source evidence.</li><li>Close work only after verification, evidence, integration, and deployment are recorded.</li></ul>
+          <div class="tour-callout">That loop is the project-management system: a Kanban-style flow with explicit ownership, proof, and escalation. A full Scrum ceremony is optional—not a prerequisite for control.</div>
+        </section>
+        <footer class="tour-actions">
+          <button type="button" data-tour-back disabled>Back</button>
+          <span class="tour-count" data-tour-count aria-live="polite">Step 1 of 6</span>
+          <button class="tour-next" type="button" data-tour-next>Next checkpoint</button>
+        </footer>
+      </div>
+    </div>
+  </div>
+</dialog>"""
+
+
+_OPERATOR_TOUR_SCRIPT = """<script>
+(function(){
+  var dialog = document.getElementById('cc-tour');
+  if (!dialog) return;
+  var panels = dialog.querySelectorAll('[data-tour-panel]');
+  var steps = dialog.querySelectorAll('[data-tour-step]');
+  var back = dialog.querySelector('[data-tour-back]');
+  var next = dialog.querySelector('[data-tour-next]');
+  var count = dialog.querySelector('[data-tour-count]');
+  var current = 0, lastFocus = null;
+
+  function show(index, focusPanel){
+    current = Math.max(0, Math.min(panels.length - 1, index));
+    for (var i = 0; i < panels.length; i++) {
+      var active = i === current;
+      panels[i].hidden = !active;
+      steps[i].setAttribute('aria-selected', active ? 'true' : 'false');
+      steps[i].tabIndex = active ? 0 : -1;
+    }
+    back.disabled = current === 0;
+    next.textContent = current === panels.length - 1 ? 'Finish tour' : 'Next checkpoint';
+    count.textContent = 'Step ' + (current + 1) + ' of ' + panels.length;
+    if (focusPanel) panels[current].focus();
+  }
+  function openTour(opener){
+    lastFocus = opener || document.activeElement;
+    show(0, false);
+    if (typeof dialog.showModal === 'function') dialog.showModal();
+    else dialog.setAttribute('open', '');
+    panels[0].focus();
+  }
+  function closeTour(){
+    if (typeof dialog.close === 'function') dialog.close();
+    else { dialog.removeAttribute('open'); restoreFocus(); }
+  }
+  function restoreFocus(){ if (lastFocus && lastFocus.focus) lastFocus.focus(); }
+
+  var openers = document.querySelectorAll('[data-tour-open]');
+  for (var i = 0; i < openers.length; i++) {
+    openers[i].addEventListener('click', function(){ openTour(this); });
+  }
+  for (var j = 0; j < steps.length; j++) {
+    steps[j].addEventListener('click', function(){ show(Number(this.getAttribute('data-tour-step')), true); });
+  }
+  dialog.querySelector('[data-tour-close]').addEventListener('click', closeTour);
+  back.addEventListener('click', function(){ show(current - 1, true); });
+  next.addEventListener('click', function(){
+    if (current === panels.length - 1) closeTour();
+    else show(current + 1, true);
+  });
+  dialog.addEventListener('close', restoreFocus);
+  dialog.addEventListener('keydown', function(evt){
+    if (evt.key === 'ArrowRight') { evt.preventDefault(); show(current + 1, true); }
+    if (evt.key === 'ArrowLeft') { evt.preventDefault(); show(current - 1, true); }
+  });
+})();
+</script>"""
+
+
 _TZ_UPGRADE_SCRIPT = """<script>
 (function(){
   function upgrade(attr, opts){
@@ -424,12 +572,20 @@ def _machine_cockpit_html(state):
             f'{(" · " + red_links) if red_links else ""}'
             f'{(" · " + _e(ci.get("error"))) if ci.get("error") else ""}</span></span></li>'
         )
+        if repo.get("telemetry_status") == "stale":
+            integration_items += (
+                f'<li><span class="who">stale report</span><span class="what"><b>{_e(repo.get("name"))}</b> '
+                f'is showing an old {_e(repo.get("evidence_host") or "remote host")} snapshot'
+                f'<span class="item-detail">age: {_e(repo.get("report_age_minutes"))}m · '
+                f'{_e(repo.get("telemetry_error") or repo.get("source"))}</span></span></li>'
+            )
         if not repo.get("available"):
             integration_items += (
                 f'<li><span class="who">unavailable</span><span class="what"><b>{_e(repo.get("name"))}</b> '
                 f'local Git telemetry is unavailable on this host'
                 f'<span class="item-detail">{_e(repo.get("path"))} · '
-                f'{_e(repo.get("error") or "checkout unavailable")} · {_e(repo.get("source"))}</span></span></li>'
+                f'{_e(repo.get("telemetry_error") or repo.get("error") or "checkout unavailable")} · '
+                f'{_e(repo.get("source"))}</span></span></li>'
             )
             continue
         if repo.get("dirty"):
@@ -440,21 +596,23 @@ def _machine_cockpit_html(state):
             )
         for branch in repo.get("unintegrated_branches", []):
             integration_items += (
-                f'<li><span class="who">{branch.get("unique_commits", 0)} commit(s)</span>'
+                f'<li><span class="who">{"stale · " if branch.get("stale") else ""}{branch.get("unique_commits", 0)} commit(s)</span>'
                 f'<span class="what"><b>{_e(branch.get("branch"))}</b> is not integrated into the local default-branch snapshot'
                 f'<span class="item-detail">{_e(repo.get("name"))} · upstream: '
-                f'{_e(branch.get("upstream") or "none")} · last commit: {_e(branch.get("committed_at"))}</span></span></li>'
+                f'{_e(branch.get("upstream") or "none")} · last commit: {_e(branch.get("committed_at"))}'
+                f'{(" · " + _e(branch.get("age_days")) + "d old") if branch.get("age_days") is not None else ""}</span></span></li>'
             )
     if not ci_items:
         ci_items = '<li><span class="what">repository delivery tracking is not enabled for this project</span></li>'
     if not integration_items:
         integration_items = '<li><span class="what">no dirty checkout or unintegrated local branch detected</span></li>'
 
+    integrity_issues = (quality.get("issues") or []) + (quality.get("closure_issues") or [])
     issue_items = "".join(
         f'<li><span class="who">{_e(issue.get("severity"))}</span>'
         f'<span class="what"><b>{_e(issue.get("id"))}</b> — {_e(issue.get("message"))}'
         f'<span class="item-detail">{_e(issue.get("file"))}</span></span></li>'
-        for issue in (quality.get("issues") or [])[:12]
+        for issue in integrity_issues[:12]
     ) or '<li><span class="what">all active tickets satisfy the current contract</span></li>'
 
     stats = f"""
@@ -462,17 +620,20 @@ def _machine_cockpit_html(state):
   <span><b>{quality.get('active_count', 0)}</b> active tickets</span>
   <span><b>{quality.get('error_count', 0)}</b> ticket errors</span>
   <span><b>{quality.get('migration_issue_count', 0)}</b> migration warnings</span>
+  <span><b>{quality.get('verified_closure_count', 0)}</b> verified v1 closures</span>
+  <span><b>{quality.get('closure_error_count', 0)}</b> closure errors</span>
   <span><b>{len(needs)}</b> need the operator</span>
   <span><b>{delivery_summary.get('red_ci', 0)}</b> red CI</span>
   <span><b>{delivery_summary.get('local_unavailable', 0)}</b> local checks unavailable</span>
+  <span><b>{delivery_summary.get('stale_reports', 0)}</b> stale host reports</span>
   <span><b>{delivery_summary.get('dirty_repos', 0)}</b> dirty repos</span>
   <span><b>{delivery_summary.get('unintegrated_branches', 0)}</b> unintegrated branches</span>
 </div>"""
     body = f"""{stats}<div class="cockpit-grid" style="margin-top:16px">
   <div class="panel{' attention' if needs else ''}"><h3>Needs the operator <span class="fact-label">machine fact</span></h3><p class="sub">explicit human gates and approval waits</p><ul class="clean">{needs_items}</ul></div>
   <div class="panel{' attention' if delivery_summary.get('red_ci') else ''}"><h3>Verification &amp; CI <span class="fact-label">machine fact</span></h3><p class="sub">latest result per configured workflow</p><ul class="clean">{ci_items}</ul></div>
-  <div class="panel{' attention' if delivery_summary.get('dirty_repos') or delivery_summary.get('unintegrated_branches') or delivery_summary.get('local_unavailable') else ' good'}"><h3>Unintegrated work <span class="fact-label">machine fact</span></h3><p class="sub">local Git snapshot; unavailable checkouts are explicit, never treated as clean</p><ul class="clean">{integration_items}</ul></div>
-  <div class="panel{' attention' if quality.get('error_count') else ''}"><h3>Ticket integrity <span class="fact-label">machine fact</span></h3><p class="sub">owner · definition of done · verification · blocker follow-up</p><ul class="clean">{issue_items}</ul></div>
+  <div class="panel{' attention' if delivery_summary.get('dirty_repos') or delivery_summary.get('unintegrated_branches') or delivery_summary.get('local_unavailable') or delivery_summary.get('stale_reports') else ' good'}"><h3>Unintegrated work <span class="fact-label">machine fact</span></h3><p class="sub">host Git snapshots; stale or unavailable evidence is explicit, never treated as clean</p><ul class="clean">{integration_items}</ul></div>
+  <div class="panel{' attention' if quality.get('error_count') or quality.get('closure_error_count') else ''}"><h3>Ticket integrity <span class="fact-label">machine fact</span></h3><p class="sub">owner · definition of done · verification · blocker follow-up · closure proof</p><ul class="clean">{issue_items}</ul></div>
 </div>"""
     return _sec("Delivery cockpit", body,
                 note="operational facts · every claim links to a ticket, Git state, or CI run",
@@ -751,6 +912,7 @@ def render_index(instances):
     red_ci = []
     unintegrated = []
     local_unavailable = []
+    stale_reports = []
     done_by_ticket = {}
     ticket_issue_keys = set()
 
@@ -779,6 +941,8 @@ def render_index(instances):
                 unintegrated.append((inst, repo))
             if not repo.get("available"):
                 local_unavailable.append((inst, repo))
+            if repo.get("telemetry_status") == "stale":
+                stale_reports.append((inst, repo))
 
     needs_human = list(needs_by_ticket.values())
     blocked = list(blocked_by_ticket.values())
@@ -835,12 +999,20 @@ def render_index(instances):
             f'<b>{_e(inst["name"])}</b></a> — {_e(repo.get("name"))}'
             f'<span class="item-detail">{_e(" · ".join(details))} · {_e(repo.get("source"))}</span></span></li>'
         )
+    for inst, repo in stale_reports[:8]:
+        risk_rows += (
+            f'<li><span class="who">stale report</span><span class="what"><a href="{project_link(inst)}">'
+            f'<b>{_e(inst["name"])}</b></a> — {_e(repo.get("name"))}'
+            f'<span class="item-detail">{_e(repo.get("evidence_host") or "remote host")} · '
+            f'{_e(repo.get("report_age_minutes"))}m old · '
+            f'{_e(repo.get("telemetry_error") or repo.get("source"))}</span></span></li>'
+        )
     for inst, repo in local_unavailable[:8]:
         risk_rows += (
             f'<li><span class="who">host gap</span><span class="what"><a href="{project_link(inst)}">'
             f'<b>{_e(inst["name"])}</b></a> — {_e(repo.get("name"))}'
             f'<span class="item-detail">{_e(repo.get("path"))} · '
-            f'{_e(repo.get("error") or "local checkout unavailable on collector host")}</span></span></li>'
+            f'{_e(repo.get("telemetry_error") or repo.get("error") or "local checkout unavailable on collector host")}</span></span></li>'
         )
     risk_rows = risk_rows or '<li><span class="what">no configured delivery risk detected</span></li>'
 
@@ -861,13 +1033,14 @@ def render_index(instances):
   <span><b>{len(red_ci)}</b> repos with red CI</span>
   <span><b>{len(unintegrated)}</b> repos with unintegrated work</span>
   <span><b>{len(local_unavailable)}</b> local checks unavailable</span>
+  <span><b>{len(stale_reports)}</b> stale host reports</span>
   <span><b>{ticket_errors}</b> ticket errors</span>
   <span><b>{migration_warnings}</b> migration warnings</span>
 </div>
 <div class="cockpit-grid" style="margin-top:20px">
   <div class="panel{' attention' if needs_human else ''}"><h3>Needs the operator <span class="fact-label">machine fact</span></h3><p class="sub">decisions and human gates only</p><ul class="clean">{needs_html}</ul></div>
   <div class="panel"><h3>Live operations <span class="fact-label">machine fact</span></h3><p class="sub">fresh heartbeat + live process; duplicate sessions collapsed</p><ul class="clean">{active_html}</ul></div>
-  <div class="panel{' attention' if red_ci or blocked or unintegrated or local_unavailable else ' good'}"><h3>Delivery risks <span class="fact-label">machine fact</span></h3><p class="sub">red CI · blocked tickets · Git risks · unavailable telemetry</p><ul class="clean">{risk_rows}</ul></div>
+  <div class="panel{' attention' if red_ci or blocked or unintegrated or local_unavailable or stale_reports else ' good'}"><h3>Delivery risks <span class="fact-label">machine fact</span></h3><p class="sub">red CI · blocked tickets · Git risks · stale or unavailable telemetry</p><ul class="clean">{risk_rows}</ul></div>
   <div class="panel"><h3>Recently completed <span class="fact-label">machine fact</span></h3><p class="sub">ticket result; missing evidence is shown, never implied</p><ul class="clean">{done_html}</ul></div>
 </div>"""
 
@@ -883,6 +1056,8 @@ def render_index(instances):
         attention = (
             need_count + blocked_count + delivery_summary.get("red_ci", 0)
             + delivery_summary.get("local_unavailable", 0)
+            + delivery_summary.get("stale_reports", 0)
+            + (state.get("work_item_quality") or {}).get("closure_error_count", 0)
         )
         if attention:
             health = _pill("blocked", "attention")
@@ -901,7 +1076,7 @@ def render_index(instances):
   <p class="desc">{_e(inst.get("description") or b.get("north_star") or "No description yet.")}</p>
   {f'<div class="bar live"><i style="width:{pct}%"></i></div><div class="bar-lbl">{pct}% to first-show milestone</div>' if pct is not None else ""}
   {f'<div class="pulse" style="margin-top:12px"><span class="dot"></span> {_e(b.get("live_edge"))}</div>' if b.get("live_edge") else ""}
-  <div class="stat-strip"><span><b>{live_count}</b> live</span><span><b>{need_count}</b> need the operator</span><span><b>{blocked_count}</b> blocked</span><span><b>{delivery_summary.get('red_ci', 0)}</b> red CI</span><span><b>{delivery_summary.get('local_unavailable', 0)}</b> host gaps</span><span><b>{issue_count}</b> ticket errors</span></div>
+  <div class="stat-strip"><span><b>{live_count}</b> live</span><span><b>{need_count}</b> need the operator</span><span><b>{blocked_count}</b> blocked</span><span><b>{delivery_summary.get('red_ci', 0)}</b> red CI</span><span><b>{delivery_summary.get('local_unavailable', 0)}</b> host gaps</span><span><b>{delivery_summary.get('stale_reports', 0)}</b> stale reports</span><span><b>{issue_count}</b> ticket errors</span></div>
   <div class="meta">briefing {briefing_when} <span class="fact-label ai">AI summary</span> · operational state {_ts_span(generated_iso)} <span class="fact-label">machine fact</span></div>
 </a>"""
     if not cards:
@@ -914,12 +1089,13 @@ def render_index(instances):
   <p class="kicker">your org · Fleet</p>
   <h1>Delivery <span class="b">Cockpit</span></h1>
   <p class="northstar">Goals, live sessions, tickets, blockers, Git integration, and CI in one place. Machine facts are labeled separately from AI-authored project briefings.</p>
-</div><div class="mast-meta"><div class="now">generated {_ts_span(generated_iso)}</div></div></header>
+</div><div class="mast-meta"><div class="now">generated {_ts_span(generated_iso)}</div>
+<button class="tour-trigger" type="button" data-tour-open aria-haspopup="dialog">↗ Run 3-minute tour</button></div></header>
 {cockpit}
 <div class="sec-head" style="margin-top:34px"><h2>Project briefings</h2><span class="rule"></span><span class="note">open a card for evidence and full context</span></div>
 <div class="card-grid">{cards}</div>
 <footer><span>Command Center · engine: departments/engineering/command-center</span><span>state repo: your-org/command-center-state</span></footer>
-</div>{_TZ_UPGRADE_SCRIPT}{_COPY_LINK_SCRIPT}</body></html>"""
+</div>{_OPERATOR_TOUR_HTML}{_TZ_UPGRADE_SCRIPT}{_COPY_LINK_SCRIPT}{_OPERATOR_TOUR_SCRIPT}</body></html>"""
 
 
 def load_briefing(briefing_path):

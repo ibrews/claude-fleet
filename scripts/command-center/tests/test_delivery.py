@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 
@@ -62,6 +63,67 @@ class DeliveryTests(unittest.TestCase):
         summary = delivery.summarize(result)
         self.assertEqual(summary["local_unavailable"], 1)
         self.assertEqual(summary["dirty_repos"], 0)
+
+    def write_host_report(self, root, generated_at):
+        report_dir = os.path.join(root, "host-evidence")
+        os.makedirs(report_dir)
+        with open(os.path.join(report_dir, "your-laptop.json"), "w") as handle:
+            json.dump({
+                "schema": "host-evidence/v1",
+                "machine": "your-laptop",
+                "generated_at": generated_at,
+                "repositories": [{
+                    "project": "demo",
+                    "name": "Demo",
+                    "github": "owner/repo",
+                    "path": "/remote/demo",
+                    "available": True,
+                    "dirty": False,
+                    "dirty_entries": 0,
+                    "current_branch": "main",
+                    "unintegrated_branches": [],
+                    "error": "",
+                }],
+            }, handle)
+
+    def test_fresh_host_report_closes_collector_checkout_gap(self):
+        with tempfile.TemporaryDirectory() as state_root:
+            self.write_host_report(
+                state_root, datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            )
+            result = delivery.collect({
+                "name": "demo",
+                "delivery": {"enabled": True, "repositories": [{
+                    "name": "Demo", "path": "/not/on/collector", "github": "owner/repo",
+                    "host": "your-laptop",
+                }]},
+            }, evidence_root=state_root)
+        repo = result["repositories"][0]
+        self.assertTrue(repo["available"])
+        self.assertEqual(repo["telemetry_status"], "fresh")
+        self.assertEqual(repo["evidence_host"], "your-laptop")
+        self.assertIn("host report", repo["source"])
+        self.assertEqual(delivery.summarize(result)["local_unavailable"], 0)
+
+    def test_stale_host_report_is_a_risk_not_a_clean_fact(self):
+        with tempfile.TemporaryDirectory() as state_root:
+            stale = datetime.now(timezone.utc) - timedelta(hours=2)
+            self.write_host_report(state_root, stale.strftime("%Y-%m-%dT%H:%M:%SZ"))
+            result = delivery.collect({
+                "name": "demo",
+                "delivery": {
+                    "enabled": True,
+                    "report_max_age_minutes": 15,
+                    "repositories": [{
+                        "name": "Demo", "path": "/not/on/collector", "github": "owner/repo",
+                        "host": "your-laptop",
+                    }],
+                },
+            }, evidence_root=state_root)
+        repo = result["repositories"][0]
+        self.assertEqual(repo["telemetry_status"], "stale")
+        self.assertGreater(repo["report_age_minutes"], 100)
+        self.assertEqual(delivery.summarize(result)["stale_reports"], 1)
 
 
 if __name__ == "__main__":

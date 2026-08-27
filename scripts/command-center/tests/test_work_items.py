@@ -107,6 +107,55 @@ class WorkItemTests(unittest.TestCase):
         }
         self.assertFalse(work_items.needs_human(fields))
 
+    def test_completed_v1_ticket_stays_in_closure_integrity_audit(self):
+        path = self.write_trigger(textwrap.dedent("""
+            schema: work-item/v1
+            id: weak-closure-2026-08-26
+            project: demo
+            title: "Weak closure"
+            status: completed
+            priority: normal
+            owner: codex
+            done_when: The live surface proves the outcome.
+            verification: Inspect the live surface.
+            completed_at: 2026-08-26
+        """).strip())
+        item = work_items.parse_trigger(path)
+        report = work_items.summarize([item])
+        self.assertEqual(report["active_count"], 0)
+        self.assertEqual(report["closure_error_count"], 1)
+        self.assertEqual(report["verified_closure_count"], 0)
+
+    def test_scan_retains_archived_v1_closures_without_legacy_archive(self):
+        with tempfile.TemporaryDirectory() as root:
+            archive = os.path.join(root, "triggers", "archive")
+            os.makedirs(archive)
+            v1 = textwrap.dedent("""
+                ---
+                schema: work-item/v1
+                id: verified-closure
+                project: demo
+                title: "Verified closure"
+                status: completed
+                priority: normal
+                owner: codex
+                done_when: The outcome is visible.
+                verification: Inspect the result.
+                evidence: commit abc1234
+                completed_at: 2026-08-26
+                ---
+                ## Result
+
+                Verified on the real surface.
+            """).strip()
+            legacy = "---\ntitle: Legacy\nstatus: completed\n---\n## Result\n\nOld.\n"
+            with open(os.path.join(archive, "v1.md"), "w") as handle:
+                handle.write(v1)
+            with open(os.path.join(archive, "legacy.md"), "w") as handle:
+                handle.write(legacy)
+            items = work_items.scan(root)
+        self.assertEqual([item["id"] for item in items], ["verified-closure"])
+
 
 if __name__ == "__main__":
     unittest.main()

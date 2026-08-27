@@ -65,12 +65,17 @@ blocked tickets, latest GitHub Actions results, dirty checkouts, and local branc
 are absent from the default branch. Machine facts are labeled separately from the AI-authored
 briefing. Repository checks are opt-in and never fetch or change refs:
 
+Use **Run 3-minute tour** in the cockpit for the guided operator flow. The durable version is
+[`scripts/command-center/operator-walkthrough.md`](../scripts/command-center/operator-walkthrough.md):
+the 30-second scan, panel meanings, evidence rules, ticket lifecycle, and daily/weekly review loops.
+
 ```json
 {
   "delivery": {
     "enabled": true,
     "repositories": [{
       "name": "Your Project",
+      "host": "your-laptop",
       "path": "~/src/your-project",
       "github": "your-org/your-project",
       "default_branch": "main"
@@ -81,6 +86,20 @@ briefing. Repository checks are opt-in and never fetch or change refs:
 
 If a checkout is absent from the machine running the collector, the cockpit shows a **host gap**
 with the missing path. Unavailable telemetry is never treated as a clean repository.
+
+For a checkout owned by another machine, `host_reporter.py` publishes a read-only
+`host-evidence/v1` snapshot to `state_root/host-evidence/<machine>.json`. The collector prefers a
+fresh report and marks a missing or older-than-15-minute report as a risk; it never fetches or
+changes the product repo. Run it every five minutes with the included launchd template (or the
+equivalent scheduler on your platform):
+
+```bash
+python3 scripts/command-center/host_reporter.py --machine your-laptop --publish
+```
+
+Unintegrated branches and open PRs become stale after 14 days by default. Completed v1 tickets stay
+in the closure audit after archival, so missing verification evidence cannot disappear merely
+because the active queue was flushed.
 
 `triggers/*.md` remain the one work queue. New work uses `schema: work-item/v1` and declares an
 explicit `project`, one accountable `owner`, an observable `done_when`, and exact `verification`.

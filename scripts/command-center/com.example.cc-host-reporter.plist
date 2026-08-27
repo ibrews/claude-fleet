@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.example.cc-host-reporter</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>__KB_ROOT__/departments/engineering/command-center/host_reporter.py</string>
+    <string>--kb-root</string>
+    <string>__KB_ROOT__</string>
+    <string>--state-root</string>
+    <string>__STATE_ROOT__</string>
+    <string>--machine</string>
+    <string>__MACHINE__</string>
+    <string>--publish</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__KB_ROOT__</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>300</integer>
+  <key>StandardOutPath</key>
+  <string>/tmp/cc-host-reporter.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/cc-host-reporter.err</string>
+</dict>
+</plist>

@@ -268,18 +268,34 @@ def parse_trigger(path, kb_root=None):
 
 
 def scan(kb_root):
-    return [
-        parse_trigger(path, kb_root)
-        for path in sorted(glob.glob(os.path.join(kb_root, "triggers", "*.md")))
+    active_paths = sorted(glob.glob(os.path.join(kb_root, "triggers", "*.md")))
+    items = [
+        parse_trigger(path, kb_root) for path in active_paths
         if os.path.basename(path).lower() != "readme.md"
     ]
+    # The inbox flush archives completed triggers quickly. Keep v1 closures in
+    # the evidence audit after archival without importing the entire legacy
+    # archive back into the active queue and project matchers.
+    for path in sorted(glob.glob(os.path.join(kb_root, "triggers", "archive", "*.md"))):
+        fields, _ = parse_frontmatter(path)
+        if fields.get("schema") == SCHEMA_V1:
+            items.append(parse_trigger(path, kb_root))
+    return items
 
 
 def summarize(items):
     active = [item for item in items if item["status"] not in TERMINAL_STATUSES]
+    completed_v1 = [
+        item for item in items
+        if item["status"] == "completed" and item["schema"] == SCHEMA_V1
+    ]
     issues = [
         {"id": item["id"], "file": item["file"], **issue}
         for item in active for issue in item["schema_issues"]
+    ]
+    closure_issues = [
+        {"id": item["id"], "file": item["file"], **issue}
+        for item in completed_v1 for issue in item["schema_issues"]
     ]
     return {
         "active_count": len(active),
@@ -295,6 +311,13 @@ def summarize(items):
         "migration_issue_count": sum(issue["severity"] == "warning" for issue in issues),
         "legacy_count": sum(item["schema"] != SCHEMA_V1 for item in active),
         "issues": issues,
+        "completed_v1_count": len(completed_v1),
+        "verified_closure_count": sum(not item["schema_issues"] for item in completed_v1),
+        "closure_issue_count": len(closure_issues),
+        "closure_error_count": sum(
+            issue["severity"] == "error" for issue in closure_issues
+        ),
+        "closure_issues": closure_issues,
     }
 
 
@@ -314,11 +337,14 @@ def main():
         print(
             f"{report['active_count']} active tickets · "
             f"{report['contract_ready_count']} v1-ready · {report['error_count']} errors · "
-            f"{report['migration_issue_count']} migration warnings"
+            f"{report['migration_issue_count']} migration warnings · "
+            f"{report['verified_closure_count']}/{report['completed_v1_count']} verified v1 closures"
         )
-        for issue in report["issues"]:
+        for issue in report["issues"] + report["closure_issues"]:
             print(f"{issue['severity'].upper():7} {issue['file']}: {issue['message']}")
-    if report["error_count"] or (args.strict and report["issue_count"]):
+    if report["error_count"] or report["closure_error_count"] or (
+        args.strict and (report["issue_count"] or report["closure_issue_count"])
+    ):
         raise SystemExit(1)
 
 

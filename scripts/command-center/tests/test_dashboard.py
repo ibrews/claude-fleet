@@ -53,6 +53,21 @@ class DashboardTests(unittest.TestCase):
         self.assertIn("ticket errors", output)
         self.assertIn("migration warnings", output)
         self.assertIn("Project briefings", output)
+        self.assertIn(".card-grid{grid-template-columns:minmax(0,1fr)}", output)
+
+    def test_index_includes_accessible_operator_walkthrough(self):
+        state = sample_state()
+        output = dashboard.render_index([{
+            "name": "demo", "description": "Demo", "workers": 0,
+            "briefing": {}, "state": state, "delivery": state["delivery"],
+        }])
+        self.assertIn("Run 3-minute tour", output)
+        self.assertIn('aria-labelledby="cc-tour-title"', output)
+        self.assertEqual(output.count('data-tour-panel="'), 6)
+        self.assertIn("Machine fact", output)
+        self.assertIn("A ticket closes only with evidence", output)
+        self.assertIn("full Scrum ceremony is optional", output)
+        self.assertIn("ArrowRight", output)
 
     def test_index_deduplicates_same_ticket_across_legacy_keyword_matches(self):
         state = sample_state()
@@ -76,6 +91,21 @@ class DashboardTests(unittest.TestCase):
         }])
         self.assertIn("host gap", output)
         self.assertIn("checkout not present on this host", output)
+
+    def test_stale_host_report_is_visible_as_a_delivery_risk(self):
+        state = sample_state()
+        repo = state["delivery"]["repositories"][0]
+        repo.update({
+            "telemetry_status": "stale", "evidence_host": "your-laptop",
+            "report_age_minutes": 91, "source": "your-laptop host report",
+        })
+        state["delivery_summary"]["stale_reports"] = 1
+        output = dashboard.render_index([{
+            "name": "demo", "description": "Demo", "workers": 0,
+            "briefing": {}, "state": state, "delivery": state["delivery"],
+        }])
+        self.assertIn("stale report", output)
+        self.assertIn("your-laptop", output)
 
 
 if __name__ == "__main__":

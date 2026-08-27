@@ -97,9 +97,20 @@ def collect_sessions(kb_root, keywords, stale_min=15):
 
 def collect_triggers(kb_root, keywords, project_name=""):
     done, in_flight, blocked = [], [], []
-    for path in glob.glob(os.path.join(kb_root, "triggers", "*.md")):
+    paths = glob.glob(os.path.join(kb_root, "triggers", "*.md"))
+    paths += glob.glob(os.path.join(kb_root, "triggers", "archive", "*.md"))
+    for path in paths:
         fields, body = parse_frontmatter(path)
         if not fields:
+            continue
+        archived = os.path.basename(os.path.dirname(path)) == "archive"
+        # Retain only completed v1 evidence after the queue flush. Importing
+        # the legacy archive would resurrect years of terminal work into every
+        # project matcher and make the cockpit unusable.
+        if archived and not (
+            fields.get("schema") == work_items.SCHEMA_V1
+            and work_items.normalize_status(fields.get("status"), fields.get("schema")) == "completed"
+        ):
             continue
         entry = work_items.parse_trigger(path, kb_root)
         project = entry.get("project", "").strip().lower()
