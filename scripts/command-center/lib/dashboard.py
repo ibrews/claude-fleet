@@ -152,9 +152,11 @@ footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--border-soft);
 .icard .meta{font-family:ui-monospace,monospace;font-size:11px;color:var(--ink-faint);margin-top:10px}
 .copylink{position:absolute;top:16px;right:16px;font-family:ui-monospace,monospace;font-size:11px;color:var(--ink-dim);padding:5px 10px;border:1px solid var(--border-soft);border-radius:8px;background:var(--surface);cursor:pointer}
 .copylink:hover{color:var(--ink);border-color:var(--border)}
+.work-this{display:inline-flex;align-items:center;gap:5px;margin-top:8px;border:1px solid color-mix(in srgb,var(--amber) 48%,var(--border));border-radius:7px;background:color-mix(in srgb,var(--amber) 8%,var(--surface));color:var(--amber);padding:5px 8px;font:700 10px/1 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.work-this:hover{color:var(--ink);border-color:var(--amber);background:color-mix(in srgb,var(--amber) 16%,var(--surface))}
 .tour-trigger{margin-top:12px;border:1px solid color-mix(in srgb,var(--amber) 55%,var(--border));border-radius:8px;background:color-mix(in srgb,var(--amber) 10%,var(--surface));color:var(--amber);padding:8px 11px;font:700 10.5px/1 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
 .tour-trigger:hover{background:color-mix(in srgb,var(--amber) 17%,var(--surface));color:var(--ink)}
-.tour-trigger:focus-visible,.tour button:focus-visible{outline:2px solid var(--gel);outline-offset:3px}
+.tour-trigger:focus-visible,.tour button:focus-visible,.work-this:focus-visible,.work-dialog button:focus-visible,.work-dialog a:focus-visible{outline:2px solid var(--gel);outline-offset:3px}
 .tour{width:min(920px,calc(100vw - 32px));max-height:min(720px,calc(100vh - 32px));padding:0;border:1px solid color-mix(in srgb,var(--amber) 42%,var(--border));border-radius:18px;background:var(--surface);color:var(--ink);box-shadow:0 32px 100px rgba(0,0,0,.62);overflow:hidden}
 .tour::backdrop{background:rgba(12,9,16,.78);backdrop-filter:blur(5px)}
 .tour-shell{background:linear-gradient(135deg,color-mix(in srgb,var(--amber) 4%,var(--surface)),var(--surface) 48%,color-mix(in srgb,var(--gel) 3%,var(--surface)));min-height:570px;display:flex;flex-direction:column}
@@ -183,6 +185,22 @@ footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--border-soft);
 .tour-actions button[disabled]{opacity:.35;cursor:default}
 .tour-actions .tour-next{border-color:var(--amber);background:var(--amber);color:#21170a}
 .tour-count{text-align:center;color:var(--ink-faint);font:10.5px/1 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.08em;text-transform:uppercase}
+.work-dialog{width:min(760px,calc(100vw - 32px));padding:0;border:1px solid color-mix(in srgb,var(--gel) 48%,var(--border));border-radius:16px;background:var(--surface);color:var(--ink);box-shadow:0 32px 100px rgba(0,0,0,.62);overflow:hidden}
+.work-dialog::backdrop{background:rgba(12,9,16,.78);backdrop-filter:blur(5px)}
+.work-shell{background:linear-gradient(135deg,color-mix(in srgb,var(--gel) 7%,var(--surface)),var(--surface) 58%,color-mix(in srgb,var(--amber) 4%,var(--surface)));padding:24px}
+.work-head{display:flex;align-items:start;justify-content:space-between;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--border)}
+.work-head h2{margin:5px 0 0;font-size:clamp(21px,4vw,31px);line-height:1.08;letter-spacing:-.025em;max-width:23ch}
+.work-close{width:34px;height:34px;border:1px solid var(--border);border-radius:50%;background:var(--surface);color:var(--ink-dim);font-size:20px;line-height:1;cursor:pointer}
+.work-fields{margin:20px 0 0;display:grid;gap:0;border-top:1px solid var(--border-soft)}
+.work-fields div{display:grid;grid-template-columns:130px minmax(0,1fr);gap:16px;padding:13px 0;border-bottom:1px solid var(--border-soft)}
+.work-fields dt{color:var(--gel);font:700 10px/1.4 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.09em;text-transform:uppercase}
+.work-fields dd{margin:0;color:var(--ink-dim);font-size:13px;overflow-wrap:anywhere}
+.work-fields dd strong{color:var(--ink)}
+.work-note{margin:18px 0 0;border-left:3px solid var(--amber);padding:8px 0 8px 12px;color:var(--ink-faint);font:11.5px/1.5 ui-monospace,"SF Mono",Menlo,monospace}
+.work-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:20px}
+.work-actions a,.work-actions button{border:1px solid var(--border);border-radius:8px;background:var(--raised);color:var(--ink);padding:10px 12px;font:700 10.5px/1 ui-monospace,"SF Mono",Menlo,monospace;letter-spacing:.06em;text-transform:uppercase;text-decoration:none;cursor:pointer}
+.work-actions a{color:var(--gel);border-color:color-mix(in srgb,var(--gel) 42%,var(--border));background:color-mix(in srgb,var(--gel) 7%,var(--surface))}
+.work-actions button{border-color:var(--amber);background:var(--amber);color:#21170a}
 .haq-grid{display:grid;gap:16px;margin-top:2px}
 .haq-item{border-left:3px solid var(--amber)}
 .haq-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 8px}
@@ -198,12 +216,32 @@ footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--border-soft);
 .good{border-left:3px solid var(--proven)}
 .cockpit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 @media (max-width:820px){.mast{grid-template-columns:1fr}.mast-meta{text-align:left}.cols,.bigbars{grid-template-columns:1fr}.row{grid-template-columns:26px 1fr}.row>*{grid-column:2}.row .ph-n{grid-column:1}}
-@media (max-width:680px){.cockpit-grid{grid-template-columns:1fr}.card-grid{grid-template-columns:minmax(0,1fr)}.icard{min-width:0}.tour{width:calc(100vw - 12px);max-height:calc(100vh - 12px)}.tour-shell{min-height:0;max-height:calc(100vh - 14px)}.tour-layout{display:flex;flex-direction:column;min-height:0}.tour-rail{padding:10px;border-right:0;border-bottom:1px solid var(--border);overflow-x:auto}.tour-rail ol{display:flex;min-width:max-content}.tour-step{width:43px;grid-template-columns:1fr;padding:6px}.tour-step span{margin:auto}.tour-step b{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.tour-stage{padding:24px 20px 18px;overflow-y:auto}.tour-panel h3{font-size:27px}.tour-head{padding:14px 16px}.tour-actions{position:sticky;bottom:-18px;background:var(--surface);padding:14px 0 2px}}
+@media (max-width:680px){.cockpit-grid{grid-template-columns:1fr}.card-grid{grid-template-columns:minmax(0,1fr)}.icard{min-width:0}.tour{width:calc(100vw - 12px);max-height:calc(100vh - 12px)}.tour-shell{min-height:0;max-height:calc(100vh - 14px)}.tour-layout{display:flex;flex-direction:column;min-height:0}.tour-rail{padding:10px;border-right:0;border-bottom:1px solid var(--border);overflow-x:auto}.tour-rail ol{display:flex;min-width:max-content}.tour-step{width:43px;grid-template-columns:1fr;padding:6px}.tour-step span{margin:auto}.tour-step b{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.tour-stage{padding:24px 20px 18px;overflow-y:auto}.tour-panel h3{font-size:27px}.tour-head{padding:14px 16px}.tour-actions{position:sticky;bottom:-18px;background:var(--surface);padding:14px 0 2px}.work-dialog{width:calc(100vw - 12px)}.work-shell{padding:18px}.work-fields div{grid-template-columns:1fr;gap:5px}.work-head h2{font-size:24px}}
 """
 
 
 def _e(s):
     return html.escape(str(s or ""))
+
+
+def _work_this_button(project, project_href, title, evidence, next_step, done_when, verification):
+    """A deliberately non-mutating handoff control for an observed risk.
+
+    The cockpit cannot safely infer a target agent, permission scope, or
+    priority from a dashboard observation. This button therefore opens a
+    complete, copyable dispatch brief instead of silently creating work.
+    """
+    fields = {
+        "project": project,
+        "link": project_href,
+        "title": title,
+        "evidence": evidence,
+        "next": next_step,
+        "done": done_when,
+        "verify": verification,
+    }
+    attrs = " ".join(f'data-work-{key}="{_e(value)}"' for key, value in fields.items())
+    return f'<button class="work-this" type="button" data-work-this aria-haspopup="dialog" {attrs}>↗ Work this</button>'
 
 
 _NO_UPDATE_TS = object()  # sentinel: caller didn't pass updated_iso at all -> no "Last updated" line
@@ -421,7 +459,7 @@ _OPERATOR_TOUR_HTML = """
         <section class="tour-panel" data-tour-panel="3" tabindex="-1" hidden>
           <p class="tour-coordinate">04 / De-risk</p><h3>Delivery risks show where work can fall off the table.</h3>
           <ul><li><strong>Red CI</strong> is the latest configured workflow result.</li><li><strong>Blocked</strong> means a ticket cannot advance without a named condition.</li><li><strong>Git</strong> exposes dirty checkouts and branches not integrated into the default branch.</li><li><strong>Stale report / host gap</strong> means the collector cannot prove the remote checkout state.</li></ul>
-          <div class="tour-callout">Host reporters publish read-only Git evidence every five minutes. Reports older than fifteen minutes are visibly stale; old branches and PRs are flagged after fourteen days.</div>
+          <div class="tour-callout">Use <strong>Work this</strong> beside a risk to open a complete dispatch brief. It copies the evidence and a suggested definition of done, but does not silently create a ticket or start an agent.</div>
         </section>
         <section class="tour-panel" data-tour-panel="4" tabindex="-1" hidden>
           <p class="tour-coordinate">05 / Verify</p><h3>A ticket closes only with evidence.</h3>
@@ -499,6 +537,88 @@ _OPERATOR_TOUR_SCRIPT = """<script>
     if (evt.key === 'ArrowRight') { evt.preventDefault(); show(current + 1, true); }
     if (evt.key === 'ArrowLeft') { evt.preventDefault(); show(current - 1, true); }
   });
+})();
+</script>"""
+
+
+_WORK_THIS_HTML = """
+<dialog class="work-dialog" id="cc-work-this" aria-labelledby="cc-work-title">
+  <div class="work-shell">
+    <header class="work-head">
+      <div><p class="tour-eyebrow">Dispatch brief · no work created yet</p><h2 id="cc-work-title" data-work-title>Turn this observation into work</h2></div>
+      <button class="work-close" type="button" data-work-close aria-label="Close dispatch brief">×</button>
+    </header>
+    <dl class="work-fields">
+      <div><dt>Project</dt><dd data-work-project></dd></div>
+      <div><dt>Starting evidence</dt><dd data-work-evidence></dd></div>
+      <div><dt>Recommended first move</dt><dd data-work-next></dd></div>
+      <div><dt>Done when</dt><dd data-work-done></dd></div>
+      <div><dt>Verify by</dt><dd data-work-verify></dd></div>
+    </dl>
+    <p class="work-note">Review the evidence first. Copying this brief does not dispatch an agent, change a ticket, or alter the project.</p>
+    <footer class="work-actions">
+      <a data-work-open href="#">Open project evidence ↗</a>
+      <button type="button" data-work-copy>Copy dispatch brief</button>
+    </footer>
+  </div>
+</dialog>"""
+
+
+_WORK_THIS_SCRIPT = """<script>
+(function(){
+  var dialog = document.getElementById('cc-work-this');
+  if (!dialog) return;
+  var fields = ['project', 'title', 'evidence', 'next', 'done', 'verify', 'link'];
+  var lastFocus = null, brief = '';
+  function value(btn, key){ return btn.getAttribute('data-work-' + key) || ''; }
+  function assign(key, text){
+    var target = dialog.querySelector('[data-work-' + key + ']');
+    if (target) target.textContent = text;
+  }
+  function close(){
+    if (typeof dialog.close === 'function') dialog.close();
+    else { dialog.removeAttribute('open'); restoreFocus(); }
+  }
+  function restoreFocus(){ if (lastFocus && lastFocus.focus) lastFocus.focus(); }
+  function copied(button){
+    var original = button.textContent;
+    button.textContent = 'Copied ✓';
+    setTimeout(function(){ button.textContent = original; }, 1500);
+  }
+  function copyBrief(button){
+    function fallback(){
+      try {
+        var area = document.createElement('textarea');
+        area.value = brief; area.style.position = 'fixed'; area.style.opacity = '0';
+        document.body.appendChild(area); area.focus(); area.select();
+        var ok = document.execCommand('copy'); document.body.removeChild(area);
+        if (ok) copied(button);
+      } catch (e) {}
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(brief).then(function(){ copied(button); }, fallback);
+    else fallback();
+  }
+  var controls = document.querySelectorAll('[data-work-this]');
+  for (var i = 0; i < controls.length; i++) {
+    controls[i].addEventListener('click', function(){
+      lastFocus = this;
+      var values = {};
+      for (var j = 0; j < fields.length; j++) values[fields[j]] = value(this, fields[j]);
+      assign('title', values.title); assign('project', values.project); assign('evidence', values.evidence);
+      assign('next', values.next); assign('done', values.done); assign('verify', values.verify);
+      var link = dialog.querySelector('[data-work-open]');
+      link.setAttribute('href', values.link);
+      brief = 'Dispatch brief\\nWork: ' + values.title + '\\nProject: ' + values.project +
+        '\\nStarting evidence: ' + values.evidence + '\\nRecommended first move: ' + values.next +
+        '\\nDone when: ' + values.done + '\\nVerify by: ' + values.verify + '\\nProject evidence: ' + values.link;
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else dialog.setAttribute('open', '');
+      dialog.querySelector('[data-work-copy]').focus();
+    });
+  }
+  dialog.querySelector('[data-work-close]').addEventListener('click', close);
+  dialog.querySelector('[data-work-copy]').addEventListener('click', function(){ copyBrief(this); });
+  dialog.addEventListener('close', restoreFocus);
 })();
 </script>"""
 
@@ -977,16 +1097,34 @@ def render_index(instances):
 
     risk_rows = ""
     for inst, repo in red_ci:
+        repo_name = repo.get("github") or repo.get("name") or "configured repository"
+        failures = len((repo.get("ci") or {}).get("red", []))
+        work = _work_this_button(
+            inst["name"], project_link(inst), f"Investigate red CI in {repo_name}",
+            f"{failures} latest configured workflow result(s) failing for {repo_name}.",
+            "Open the project evidence, identify the newest failed workflow, and reproduce or diagnose before changing the release path.",
+            "The latest configured workflow passes, or the failure is documented with an owner, concrete blocker, and dated next check.",
+            "Link the workflow result and the relevant test output or diagnostic evidence to the ticket.",
+        )
         risk_rows += (
             f'<li><span class="who">red CI</span><span class="what"><a href="{project_link(inst)}">'
-            f'<b>{_e(inst["name"])}</b></a> — {_e(repo.get("github") or repo.get("name"))}'
-            f'<span class="item-detail">{len((repo.get("ci") or {}).get("red", []))} failing latest workflow result(s)</span></span></li>'
+            f'<b>{_e(inst["name"])}</b></a> — {_e(repo_name)}'
+            f'<span class="item-detail">{failures} failing latest workflow result(s)</span>{work}</span></li>'
         )
     for inst, item in blocked[:8]:
+        item_title = item.get("title") or item.get("id") or "blocked ticket"
+        blocked_on = item.get("blocked_on") or "unblock condition missing"
+        work = _work_this_button(
+            inst["name"], project_link(inst), f"Unblock {item_title}",
+            f"Current block: {blocked_on}",
+            "Decide whether the named condition needs a human decision or can be resolved safely by an agent, then assign the next move.",
+            "The ticket returns to in-progress with a concrete next action, or it records the exact human decision and a dated next check.",
+            "Update the ticket’s status, blocker, owner, and verification evidence in the durable queue.",
+        )
         risk_rows += (
             f'<li><span class="who">blocked</span><span class="what"><a href="{project_link(inst)}">'
-            f'<b>{_e(inst["name"])}</b></a> — {_e(item.get("title") or item.get("id"))}'
-            f'<span class="item-detail">{_e(item.get("blocked_on") or "unblock condition missing")}</span></span></li>'
+            f'<b>{_e(inst["name"])}</b></a> — {_e(item_title)}'
+            f'<span class="item-detail">{_e(blocked_on)}</span>{work}</span></li>'
         )
     for inst, repo in unintegrated[:8]:
         details = []
@@ -994,25 +1132,53 @@ def render_index(instances):
             details.append(f'{repo.get("dirty_entries", 0)} uncommitted entries')
         if repo.get("unintegrated_branches"):
             details.append(f'{len(repo["unintegrated_branches"])} unintegrated branches')
+        detail_text = " · ".join(details)
+        repo_name = repo.get("name") or repo.get("github") or "configured repository"
+        work = _work_this_button(
+            inst["name"], project_link(inst), f"Reconcile Git work in {repo_name}",
+            f"{detail_text or 'Git integration risk'} · source: {repo.get('source') or 'repository evidence'}.",
+            "Inspect the checkout and outstanding branches; preserve the work, then decide whether to integrate it or record its owner and next action.",
+            "The checkout is clean and branches are integrated, or each remaining item has an explicit owner, purpose, and next check.",
+            "Record git status plus merge-base or pull-request evidence; never discard unreviewed work to make the dashboard green.",
+        )
         risk_rows += (
             f'<li><span class="who">Git</span><span class="what"><a href="{project_link(inst)}">'
-            f'<b>{_e(inst["name"])}</b></a> — {_e(repo.get("name"))}'
-            f'<span class="item-detail">{_e(" · ".join(details))} · {_e(repo.get("source"))}</span></span></li>'
+            f'<b>{_e(inst["name"])}</b></a> — {_e(repo_name)}'
+            f'<span class="item-detail">{_e(detail_text)} · {_e(repo.get("source"))}</span>{work}</span></li>'
         )
     for inst, repo in stale_reports[:8]:
+        repo_name = repo.get("name") or repo.get("github") or "configured repository"
+        evidence_host = repo.get("evidence_host") or "remote host"
+        report_age = repo.get("report_age_minutes")
+        work = _work_this_button(
+            inst["name"], project_link(inst), f"Restore fresh host evidence for {repo_name}",
+            f"{evidence_host} report is {report_age}m old: {repo.get('telemetry_error') or repo.get('source') or 'no fresh report'}.",
+            "Check the reporter on the assigned host and publish a new read-only snapshot before judging the checkout’s delivery state.",
+            "The cockpit has a fresh host report or an explicit, owned infrastructure blocker with a next check.",
+            "Confirm report timestamp, repository path, and source in the project evidence panel.",
+        )
         risk_rows += (
             f'<li><span class="who">stale report</span><span class="what"><a href="{project_link(inst)}">'
-            f'<b>{_e(inst["name"])}</b></a> — {_e(repo.get("name"))}'
-            f'<span class="item-detail">{_e(repo.get("evidence_host") or "remote host")} · '
-            f'{_e(repo.get("report_age_minutes"))}m old · '
-            f'{_e(repo.get("telemetry_error") or repo.get("source"))}</span></span></li>'
+            f'<b>{_e(inst["name"])}</b></a> — {_e(repo_name)}'
+            f'<span class="item-detail">{_e(evidence_host)} · '
+            f'{_e(report_age)}m old · '
+            f'{_e(repo.get("telemetry_error") or repo.get("source"))}</span>{work}</span></li>'
         )
     for inst, repo in local_unavailable[:8]:
+        repo_name = repo.get("name") or repo.get("github") or "configured repository"
+        telemetry_error = repo.get("telemetry_error") or repo.get("error") or "local checkout unavailable on collector host"
+        work = _work_this_button(
+            inst["name"], project_link(inst), f"Restore delivery evidence for {repo_name}",
+            f"Checkout path: {repo.get('path') or 'not recorded'} · {telemetry_error}",
+            "Confirm which host owns the checkout, then restore the configured path or enable its read-only host reporter.",
+            "The cockpit receives fresh repository evidence, or the project records a named owner and dated infrastructure blocker.",
+            "Confirm the configured host/path and a fresh report in the project evidence panel.",
+        )
         risk_rows += (
             f'<li><span class="who">host gap</span><span class="what"><a href="{project_link(inst)}">'
-            f'<b>{_e(inst["name"])}</b></a> — {_e(repo.get("name"))}'
+            f'<b>{_e(inst["name"])}</b></a> — {_e(repo_name)}'
             f'<span class="item-detail">{_e(repo.get("path"))} · '
-            f'{_e(repo.get("telemetry_error") or repo.get("error") or "local checkout unavailable on collector host")}</span></span></li>'
+            f'{_e(telemetry_error)}</span>{work}</span></li>'
         )
     risk_rows = risk_rows or '<li><span class="what">no configured delivery risk detected</span></li>'
 
@@ -1095,7 +1261,7 @@ def render_index(instances):
 <div class="sec-head" style="margin-top:34px"><h2>Project briefings</h2><span class="rule"></span><span class="note">open a card for evidence and full context</span></div>
 <div class="card-grid">{cards}</div>
 <footer><span>Command Center · engine: departments/engineering/command-center</span><span>state repo: your-org/command-center-state</span></footer>
-</div>{_OPERATOR_TOUR_HTML}{_TZ_UPGRADE_SCRIPT}{_COPY_LINK_SCRIPT}{_OPERATOR_TOUR_SCRIPT}</body></html>"""
+</div>{_OPERATOR_TOUR_HTML}{_WORK_THIS_HTML}{_TZ_UPGRADE_SCRIPT}{_COPY_LINK_SCRIPT}{_OPERATOR_TOUR_SCRIPT}{_WORK_THIS_SCRIPT}</body></html>"""
 
 
 def load_briefing(briefing_path):

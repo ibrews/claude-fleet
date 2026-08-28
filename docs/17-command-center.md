@@ -68,6 +68,9 @@ briefing. Repository checks are opt-in and never fetch or change refs:
 Use **Run 3-minute tour** in the cockpit for the guided operator flow. The durable version is
 [`scripts/command-center/operator-walkthrough.md`](../scripts/command-center/operator-walkthrough.md):
 the 30-second scan, panel meanings, evidence rules, ticket lifecycle, and daily/weekly review loops.
+Each delivery risk also has **Work this**: a copyable dispatch brief with the current evidence,
+recommended first move, completion condition, and verification. It deliberately does not create a
+ticket or start an agent until an operator explicitly chooses the owner, priority, and scope.
 
 ```json
 {

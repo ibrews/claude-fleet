@@ -34,6 +34,14 @@ version of this walkthrough.
 Open a project card for its full briefing, repository evidence, ticket integrity, roadmap, and live
 session details.
 
+## Turn a risk into work
+
+Use **Work this** beside a delivery risk. It opens a dispatch brief prefilled with the project,
+starting evidence, recommended first move, definition of done, and verification. Review the source
+first, then either open the project evidence or copy the brief into the Fleet Control Center's
+dispatch surface or an agent conversation. It deliberately does not create a ticket or start an
+agent by itself: assignment, priority, and permission scope still require an explicit decision.
+
 ## Facts, summaries, and freshness
 
 - **Machine fact** is deterministic evidence from tickets, sessions, Git, CI, or host reports.

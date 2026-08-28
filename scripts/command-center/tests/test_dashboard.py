@@ -69,6 +69,21 @@ class DashboardTests(unittest.TestCase):
         self.assertIn("full Scrum ceremony is optional", output)
         self.assertIn("ArrowRight", output)
 
+    def test_delivery_risks_offer_copyable_dispatch_briefs(self):
+        state = sample_state()
+        output = dashboard.render_index([{
+            "name": "demo", "description": "Demo", "workers": 0,
+            "briefing": {}, "state": state, "delivery": state["delivery"],
+        }])
+        self.assertIn("↗ Work this", output)
+        self.assertIn('data-work-project="demo"', output)
+        self.assertIn('id="cc-work-this"', output)
+        self.assertIn("Dispatch brief · no work created yet", output)
+        self.assertIn("Copy dispatch brief", output)
+        self.assertIn("Review the evidence first", output)
+        self.assertIn("Investigate red CI in owner/repo", output)
+        self.assertIn("Unblock Choose release path", output)
+
     def test_index_deduplicates_same_ticket_across_legacy_keyword_matches(self):
         state = sample_state()
         instances = [
