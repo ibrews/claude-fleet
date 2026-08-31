@@ -125,6 +125,24 @@ class DeliveryTests(unittest.TestCase):
         self.assertGreater(repo["report_age_minutes"], 100)
         self.assertEqual(delivery.summarize(result)["stale_reports"], 1)
 
+    def test_release_readiness_manifest_is_collected_and_summarized(self):
+        with tempfile.TemporaryDirectory() as root:
+            manifest = os.path.join(root, "release.json")
+            gates = {
+                stage: [{"id": stage, "status": "pass", "evidence": "proof"}]
+                for stage in delivery.release_readiness.TARGET_STAGES["internal_demo"]
+            }
+            with open(manifest, "w") as handle:
+                json.dump({
+                    "schema": "release-readiness/v1", "product": "Demo",
+                    "release_target": "internal_demo", "gates": gates,
+                }, handle)
+            result = delivery.collect({
+                "delivery": {"enabled": False, "readiness_manifest": manifest},
+            })
+        self.assertTrue(result["readiness"]["ready"])
+        self.assertTrue(delivery.summarize(result)["release_ready"])
+
 
 if __name__ == "__main__":
     unittest.main()

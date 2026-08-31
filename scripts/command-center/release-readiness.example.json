@@ -1,0 +1,36 @@
+{
+  "schema": "release-readiness/v1",
+  "product": "replace-me",
+  "release_target": "external_pilot",
+  "gates": {
+    "functional": [
+      {"id": "acceptance", "status": "unknown", "evidence": ""},
+      {"id": "target-hardware", "status": "unknown", "evidence": ""}
+    ],
+    "visual": [
+      {"id": "screenshots-or-video", "status": "unknown", "evidence": ""},
+      {"id": "headset-or-device-review", "status": "unknown", "evidence": ""}
+    ],
+    "reproducible": [
+      {"id": "clean-machine-install", "status": "unknown", "evidence": ""}
+    ],
+    "human_usable": [
+      {"id": "manual-no-ai-workflow", "status": "unknown", "evidence": ""},
+      {"id": "readme-things-to-try", "status": "unknown", "evidence": ""}
+    ],
+    "portable": [
+      {"id": "dependency-manifest", "status": "unknown", "evidence": ""},
+      {"id": "no-machine-specific-paths-or-secrets", "status": "unknown", "evidence": ""}
+    ],
+    "packaging": [
+      {"id": "versioned-artifact", "status": "unknown", "evidence": ""},
+      {"id": "install-upgrade-uninstall", "status": "unknown", "evidence": ""}
+    ],
+    "operations": [
+      {"id": "diagnostics-known-limits-support", "status": "unknown", "evidence": ""}
+    ],
+    "legal_release": [
+      {"id": "licenses-provenance-release-preflight", "status": "unknown", "evidence": ""}
+    ]
+  }
+}

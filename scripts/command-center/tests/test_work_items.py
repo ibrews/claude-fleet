@@ -156,6 +156,53 @@ class WorkItemTests(unittest.TestCase):
             items = work_items.scan(root)
         self.assertEqual([item["id"] for item in items], ["verified-closure"])
 
+    def test_v2_requires_explicit_route_context_and_release_target(self):
+        path = self.write_trigger(textwrap.dedent("""
+            schema: work-item/v2
+            id: routed-2026-08-31
+            project: demo
+            title: "Routed ticket"
+            status: pending
+            priority: normal
+            owner: orchestrator
+            done_when: The artifact passes its acceptance suite.
+            verification: Run the acceptance suite.
+            executor: claude-worker
+            machine: beta
+            model: sonnet
+            thinking: high
+            route_basis: fleet/dispatch.md UE5 Live Tasks
+            context_limit: 600000
+            rollover_at: 500000
+            release_target: external_pilot
+        """).strip())
+        item = work_items.parse_trigger(path)
+        self.assertEqual(item["schema_issues"], [])
+        self.assertEqual(item["rollover_at"], 500000)
+
+    def test_v2_rejects_rollover_at_or_above_context_limit(self):
+        path = self.write_trigger(textwrap.dedent("""
+            schema: work-item/v2
+            id: bad-rollover-2026-08-31
+            project: demo
+            title: "Bad rollover"
+            status: pending
+            priority: normal
+            owner: orchestrator
+            done_when: The artifact passes.
+            verification: Run tests.
+            executor: claude-worker
+            machine: beta
+            model: sonnet
+            thinking: high
+            route_basis: fleet/dispatch.md
+            context_limit: 600000
+            rollover_at: 600000
+            release_target: external_pilot
+        """).strip())
+        issues = work_items.parse_trigger(path)["schema_issues"]
+        self.assertTrue(any(issue["field"] == "rollover_at" for issue in issues))
+
 
 if __name__ == "__main__":
     unittest.main()

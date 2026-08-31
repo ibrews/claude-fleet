@@ -116,6 +116,44 @@ python3 scripts/command-center/lib/work_items.py --kb-root /path/to/your/kb
 python3 scripts/command-center/lib/work_items.py --kb-root /path/to/your/kb --strict
 ```
 
+For long-running managed work, `schema: work-item/v2` also records the selected executor, machine,
+model, thinking level, routing rationale, live session ID, context limit, rollover threshold, and
+release target. The validator rejects a v2 ticket whose routing or succession boundary is implicit.
+
+### Zero-token manager pulse and automatic rollover signals
+
+`manager_pulse.py` is an external reconciliation pulse designed to run every ten minutes. Healthy
+ticks read files, role liveness, Git checkpoint age, and transcript usage, then exit without calling
+any model. It nudges the authoritative manager only when the actionable-state fingerprint changes or
+an unanswered nudge exceeds the retry window.
+
+Claude transcript usage contains the active prompt-cache footprint. `lib/session_health.py` reads it
+locally without inference and reports `healthy`, `warning`, or `rollover`. A managed task can set its
+own `context_limit` and `rollover_at`; the default policy warns at 450k tokens and rolls over around
+500–520k rather than allowing a long session to degrade indefinitely.
+
+Prime the baseline before enabling the included launchd job:
+
+```bash
+python3 scripts/command-center/manager_pulse.py --prime
+python3 scripts/command-center/manager_pulse.py --dry-run
+python3 scripts/command-center/lib/session_health.py <session-id>
+```
+
+### Release readiness: working is not yet shippable
+
+Set `delivery.readiness_manifest` to a `release-readiness/v1` JSON file. Start from
+`scripts/command-center/release-readiness.example.json`. The cockpit then reports evidence-backed
+gates for functional behavior, visual/device proof, clean-machine reproduction, manual use without
+AI, portable dependencies, packaging, operations/support, and public-release review.
+
+Targets are cumulative: `internal_demo`, `external_pilot`, and `public`. A passing gate without
+evidence is invalid, so “build succeeded” cannot silently become “ready to hand to someone.”
+
+```bash
+python3 scripts/command-center/lib/release_readiness.py path/to/release-readiness.json
+```
+
 ### Phase board sourced from your roadmap doc (no double-editing)
 
 Within the briefing, the **phase board** and the two **progress bigbars** are the kind of numbers

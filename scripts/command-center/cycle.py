@@ -104,7 +104,7 @@ def discover_instances(kb_root):
         paths = resolve_paths(cfg, kb_root)
         mechanical = reconcile.build_state(kb_root, cfg)
         mechanical["generated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        delivery_state = delivery.collect(cfg, evidence_root=paths["state_root"])
+        delivery_state = delivery.collect(cfg, evidence_root=paths["state_root"], kb_root=kb_root)
         mechanical["delivery"] = delivery_state
         mechanical["delivery_summary"] = delivery.summarize(delivery_state)
         out.append({
@@ -199,7 +199,9 @@ def run_cycle(instance_path, *, dry_run=False, session="cc-master", kb_root=None
                                             "workers_killed": killed})
         state = reconcile.build_state(kb_root, instance_config)
         state["generated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        state["delivery"] = delivery.collect(instance_config, evidence_root=paths["state_root"])
+        state["delivery"] = delivery.collect(
+            instance_config, evidence_root=paths["state_root"], kb_root=kb_root,
+        )
         state["delivery_summary"] = delivery.summarize(state["delivery"])
         state["workers"] = spawn.summarize(paths["instance_state_dir"])
         cycles_today = ledger_mod.cycles_today(paths["ledger"])
@@ -219,7 +221,9 @@ def run_cycle(instance_path, *, dry_run=False, session="cc-master", kb_root=None
     # 1. Ingest + 2. Reconcile
     state = reconcile.build_state(kb_root, instance_config)
     state["generated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    state["delivery"] = delivery.collect(instance_config, evidence_root=paths["state_root"])
+    state["delivery"] = delivery.collect(
+        instance_config, evidence_root=paths["state_root"], kb_root=kb_root,
+    )
     state["delivery_summary"] = delivery.summarize(state["delivery"])
     # Fold spawn state into the model so the dashboard + MCP see live workers,
     # spawnable candidates, and any proposals awaiting the operator's confirmation.

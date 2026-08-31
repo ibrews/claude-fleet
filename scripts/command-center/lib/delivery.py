@@ -5,7 +5,11 @@ import json
 import os
 import re
 import subprocess
+import sys
 from datetime import datetime, timezone
+
+sys.path.insert(0, os.path.dirname(__file__))
+import release_readiness  # noqa: E402
 
 
 GITHUB_SLUG_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -224,15 +228,23 @@ def _reported_repo(report, project, config):
     return None
 
 
-def collect(instance_config, evidence_root=None):
+def collect(instance_config, evidence_root=None, kb_root=None):
     """Collect evidence only for explicitly enabled projects.
 
     Explicit configuration prevents the fleet index from guessing repository
     ownership or hammering GitHub for dormant projects every cycle.
     """
     config = instance_config.get("delivery") or {}
+    readiness = None
+    manifest_path = config.get("readiness_manifest", "")
+    if manifest_path:
+        manifest_path = os.path.expanduser(manifest_path)
+        if not os.path.isabs(manifest_path):
+            manifest_path = os.path.join(kb_root or os.path.expanduser("~/knowledge"), manifest_path)
+        readiness = release_readiness.inspect(manifest_path)
     if not config.get("enabled"):
-        return {"enabled": False, "repositories": [], "as_of": _now_iso()}
+        return {"enabled": False, "repositories": [], "readiness": readiness,
+                "as_of": _now_iso()}
     repositories = []
     project = instance_config.get("name", "")
     max_age_minutes = max(1, int(config.get("report_max_age_minutes", 15)))
@@ -273,11 +285,13 @@ def collect(instance_config, evidence_root=None):
             },
             "pull_requests": inspect_pull_requests(github, stale_pr_days) if github else [],
         })
-    return {"enabled": True, "repositories": repositories, "as_of": _now_iso()}
+    return {"enabled": True, "repositories": repositories, "readiness": readiness,
+            "as_of": _now_iso()}
 
 
 def summarize(delivery_state):
     repos = delivery_state.get("repositories", [])
+    readiness = delivery_state.get("readiness") or {}
     return {
         "red_ci": sum(repo.get("ci", {}).get("status") == "red" for repo in repos),
         "ci_unavailable": sum(repo.get("ci", {}).get("status") == "unavailable" for repo in repos),
@@ -293,4 +307,6 @@ def summarize(delivery_state):
         "stale_pull_requests": sum(
             sum(bool(pr.get("stale")) for pr in repo.get("pull_requests", [])) for repo in repos
         ),
+        "release_ready": readiness.get("ready") if readiness else None,
+        "release_blockers": len(readiness.get("blockers", [])) if readiness else 0,
     }

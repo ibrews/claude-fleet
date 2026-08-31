@@ -20,6 +20,11 @@ VALID_STATUSES = {"pending", "in_progress", "review", "blocked", "completed", "c
 VALID_PRIORITIES = {"low", "normal", "high", "urgent"}
 TERMINAL_STATUSES = {"completed", "cancelled"}
 SCHEMA_V1 = "work-item/v1"
+SCHEMA_V2 = "work-item/v2"
+STRUCTURED_SCHEMAS = {SCHEMA_V1, SCHEMA_V2}
+VALID_EXECUTORS = {"inference", "claude-worker", "codex-worker", "human"}
+VALID_THINKING = {"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}
+VALID_RELEASE_TARGETS = {"development", "internal_demo", "external_pilot", "public"}
 PLACEHOLDER_RE = re.compile(r"<[^>]+>|\b(?:tbd|todo|placeholder)\b", re.IGNORECASE)
 
 # Old triggers predate a shared lifecycle and contain prose-like states. Keep
@@ -118,6 +123,14 @@ def _is_date(value):
         return False
 
 
+def _positive_int(value):
+    try:
+        parsed = int(str(value).strip())
+        return parsed if parsed > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
 def derive_owner(fields):
     for key in ("owner", "claimed_by", "target"):
         if _present(fields.get(key)) and fields[key] not in {"any", "?"}:
@@ -129,7 +142,7 @@ def normalize_status(raw_status, schema="legacy"):
     value = str(raw_status or "pending").strip()
     if value in VALID_STATUSES:
         return value
-    if schema != SCHEMA_V1:
+    if schema not in STRUCTURED_SCHEMAS:
         if value in LEGACY_STATUS_MAP:
             return LEGACY_STATUS_MAP[value]
         # Historical job summaries commonly embedded progress in the status
@@ -142,7 +155,7 @@ def normalize_priority(raw_priority, schema="legacy"):
     value = str(raw_priority or "normal").strip()
     if value in VALID_PRIORITIES:
         return value
-    if schema != SCHEMA_V1 and value == "medium":
+    if schema not in STRUCTURED_SCHEMAS and value == "medium":
         return "normal"
     return value
 
@@ -180,16 +193,16 @@ def validate(fields, body=""):
 
     for key in ("id", "title", "status", "priority"):
         if not _present(fields.get(key)):
-            add(key, f"missing {key}", "error" if schema == SCHEMA_V1 else "warning")
+            add(key, f"missing {key}", "error" if schema in STRUCTURED_SCHEMAS else "warning")
     if raw_status not in VALID_STATUSES:
         add(
             "status", f"legacy status needs migration: {raw_status}",
-            "error" if schema == SCHEMA_V1 else "warning",
+            "error" if schema in STRUCTURED_SCHEMAS else "warning",
         )
     if raw_priority not in VALID_PRIORITIES:
         add(
             "priority", f"priority needs migration: {raw_priority}",
-            "error" if schema == SCHEMA_V1 else "warning",
+            "error" if schema in STRUCTURED_SCHEMAS else "warning",
         )
 
     owner, owner_source = derive_owner(fields)
@@ -197,25 +210,49 @@ def validate(fields, body=""):
     for key in required_v1:
         value = owner if key == "owner" else fields.get(key)
         if not _present(value):
-            severity = "error" if schema == SCHEMA_V1 else "warning"
+            severity = "error" if schema in STRUCTURED_SCHEMAS else "warning"
             add(key, f"missing {key}", severity)
     if owner and owner_source != "owner":
         add("owner", f"owner derived from {owner_source}; make it explicit")
+
+    if schema == SCHEMA_V2:
+        for key in (
+            "executor", "machine", "model", "thinking", "route_basis",
+            "context_limit", "rollover_at", "release_target",
+        ):
+            if not _present(fields.get(key)):
+                add(key, f"work-item/v2 requires {key}", "error")
+        if _present(fields.get("executor")) and fields["executor"] not in VALID_EXECUTORS:
+            add("executor", f"unsupported executor: {fields['executor']}", "error")
+        if _present(fields.get("thinking")) and fields["thinking"] not in VALID_THINKING:
+            add("thinking", f"unsupported thinking level: {fields['thinking']}", "error")
+        if _present(fields.get("release_target")) and fields["release_target"] not in VALID_RELEASE_TARGETS:
+            add("release_target", f"unsupported release target: {fields['release_target']}", "error")
+        context_limit = _positive_int(fields.get("context_limit"))
+        rollover_at = _positive_int(fields.get("rollover_at"))
+        if _present(fields.get("context_limit")) and context_limit is None:
+            add("context_limit", "context_limit must be a positive token count", "error")
+        if _present(fields.get("rollover_at")) and rollover_at is None:
+            add("rollover_at", "rollover_at must be a positive token count", "error")
+        if context_limit and rollover_at and rollover_at >= context_limit:
+            add("rollover_at", "rollover_at must be below context_limit", "error")
+        if _present(fields.get("route_basis")) and "fleet/dispatch.md" not in fields["route_basis"]:
+            add("route_basis", "route_basis must cite fleet/dispatch.md", "error")
 
     if raw_status == "blocked":
         if not _present(fields.get("blocked_on")):
             add(
                 "blocked_on", "blocked ticket needs one concrete unblock condition",
-                "error" if schema == SCHEMA_V1 else "warning",
+                "error" if schema in STRUCTURED_SCHEMAS else "warning",
             )
         if not _is_date(fields.get("next_check")):
             add(
                 "next_check", "blocked ticket needs a YYYY-MM-DD next-check date",
-                "error" if schema == SCHEMA_V1 else "warning",
+                "error" if schema in STRUCTURED_SCHEMAS else "warning",
             )
     if status in {"review", "completed"} and not _present(fields.get("evidence")):
         add("evidence", f"{status} ticket needs verification evidence",
-            "error" if schema == SCHEMA_V1 else "warning")
+            "error" if schema in STRUCTURED_SCHEMAS else "warning")
     if status == "completed":
         if not _is_date(fields.get("completed_at")):
             add("completed_at", "completed ticket needs a completion date", "error")
@@ -259,6 +296,17 @@ def parse_trigger(path, kb_root=None):
         "acceptance": fields.get("acceptance", ""),
         "human_gate": fields.get("human_gate", ""),
         "completed_at": fields.get("completed_at", ""),
+        "executor": fields.get("executor", ""),
+        "machine": fields.get("machine", ""),
+        "model": fields.get("model", ""),
+        "thinking": fields.get("thinking", ""),
+        "route_basis": fields.get("route_basis", ""),
+        "context_limit": _positive_int(fields.get("context_limit")),
+        "rollover_at": _positive_int(fields.get("rollover_at")),
+        "session_id": fields.get("session_id", ""),
+        "predecessor_session": fields.get("predecessor_session", ""),
+        "release_target": fields.get("release_target", ""),
+        "readiness_manifest": fields.get("readiness_manifest", ""),
         "needs_human": needs_human(fields),
         "schema_issues": issues,
         "result": _section(body, "Result"),
@@ -287,7 +335,7 @@ def summarize(items):
     active = [item for item in items if item["status"] not in TERMINAL_STATUSES]
     completed_v1 = [
         item for item in items
-        if item["status"] == "completed" and item["schema"] == SCHEMA_V1
+        if item["status"] == "completed" and item["schema"] in STRUCTURED_SCHEMAS
     ]
     issues = [
         {"id": item["id"], "file": item["file"], **issue}
@@ -304,12 +352,12 @@ def summarize(items):
             for item in active
         ),
         "contract_ready_count": sum(
-            item["schema"] == SCHEMA_V1 and not item["schema_issues"] for item in active
+            item["schema"] in STRUCTURED_SCHEMAS and not item["schema_issues"] for item in active
         ),
         "issue_count": len(issues),
         "error_count": sum(issue["severity"] == "error" for issue in issues),
         "migration_issue_count": sum(issue["severity"] == "warning" for issue in issues),
-        "legacy_count": sum(item["schema"] != SCHEMA_V1 for item in active),
+        "legacy_count": sum(item["schema"] not in STRUCTURED_SCHEMAS for item in active),
         "issues": issues,
         "completed_v1_count": len(completed_v1),
         "verified_closure_count": sum(not item["schema_issues"] for item in completed_v1),

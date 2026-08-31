@@ -24,8 +24,13 @@ def sample_state():
                               "error_count": 0, "migration_issue_count": 0,
                               "legacy_count": 0, "issues": []},
         "delivery_summary": {"red_ci": 1, "dirty_repos": 0, "unintegrated_branches": 0,
-                             "local_unavailable": 0},
-        "delivery": {"enabled": True, "repositories": [{
+                             "local_unavailable": 0, "release_blockers": 1},
+        "delivery": {"enabled": True, "readiness": {
+            "ready": False, "release_target": "external_pilot", "passed_stages": 2,
+            "required_stages": 7, "blockers": ["reproducible", "human_usable"],
+            "issues": [], "stage_results": {"functional": "pass", "visual": "pass",
+                                               "reproducible": "unknown"},
+        }, "repositories": [{
             "name": "Demo", "github": "owner/repo", "path": "/tmp/demo", "dirty": False,
             "available": True, "unintegrated_branches": [], "source": "local Git snapshot",
             "ci": {"status": "red", "source": "GitHub Actions", "workflows": [{}],
@@ -41,6 +46,7 @@ class DashboardTests(unittest.TestCase):
         self.assertIn("Needs the operator", output)
         self.assertIn("machine fact", output)
         self.assertIn("Unintegrated work", output)
+        self.assertIn("Release readiness", output)
 
     def test_index_is_a_fleet_delivery_cockpit(self):
         state = sample_state()
@@ -53,6 +59,8 @@ class DashboardTests(unittest.TestCase):
         self.assertIn("ticket errors", output)
         self.assertIn("migration warnings", output)
         self.assertIn("Project briefings", output)
+        self.assertIn("release-blocked products", output)
+        self.assertIn("not ready for external_pilot", output)
         self.assertIn(".card-grid{grid-template-columns:minmax(0,1fr)}", output)
 
     def test_index_includes_accessible_operator_walkthrough(self):
