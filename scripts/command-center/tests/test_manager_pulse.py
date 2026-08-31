@@ -34,6 +34,17 @@ class ManagerPulseTests(unittest.TestCase):
         )
         self.assertTrue(send)
 
+    def test_changing_human_detail_does_not_bypass_fingerprint_cooldown(self):
+        previous = {"fingerprint": "stable", "last_nudge_epoch": int(time.time())}
+        first, _ = manager_pulse.should_nudge(
+            self.snapshot(["checkpoint is 21m old"], "stable"), previous,
+        )
+        second, _ = manager_pulse.should_nudge(
+            self.snapshot(["checkpoint is 31m old"], "stable"), previous,
+        )
+        self.assertFalse(first)
+        self.assertFalse(second)
+
 
 if __name__ == "__main__":
     unittest.main()

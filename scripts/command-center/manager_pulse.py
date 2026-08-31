@@ -100,13 +100,17 @@ def build_snapshot(kb_root, fleet_bus, role, *, project="", manager_stale_minute
              and (not project or item.get("project") == project)]
     board_age = board_age_minutes(kb_root)
     reasons = []
+    reason_codes = []
     if items and not role["live"]:
         reasons.append("manager role has active work but no live holder")
+        reason_codes.append("manager_missing")
     if items and board_age is not None and board_age >= manager_stale_minutes:
         reasons.append(f"manager checkpoint is {board_age:.0f}m old")
+        reason_codes.append("manager_checkpoint_stale")
     due = [item["id"] for item in items if item["status"] == "blocked" and _due(item.get("next_check"))]
     if due:
         reasons.append(f"blocked next-check due: {', '.join(due[:5])}")
+        reason_codes.extend(f"blocked_due:{task_id}" for task_id in due)
 
     worker_contexts = []
     for item in items:
@@ -119,10 +123,12 @@ def build_snapshot(kb_root, fleet_bus, role, *, project="", manager_stale_minute
             reasons.append(
                 f"{item['id']} context is {health.get('context_tokens')} tokens; prepare successor"
             )
+            reason_codes.append(f"worker_context_warning:{item['id']}")
         elif health.get("status") == "rollover":
             reasons.append(
                 f"{item['id']} context is {health.get('context_tokens')} tokens; checkpoint and roll over now"
             )
+            reason_codes.append(f"worker_context_rollover:{item['id']}")
 
     context = None
     if role["machine"] == "your-laptop" and role["session_id"]:
@@ -134,10 +140,12 @@ def build_snapshot(kb_root, fleet_bus, role, *, project="", manager_stale_minute
             reasons.append(
                 f"manager context is {context['context_tokens']} tokens; prepare rollover"
             )
+            reason_codes.append("manager_context_warning")
         elif context["status"] == "rollover":
             reasons.append(
                 f"manager context is {context['context_tokens']} tokens; rollover now"
             )
+            reason_codes.append("manager_context_rollover")
 
     task_facts = [{
         key: item.get(key) for key in (
@@ -146,12 +154,12 @@ def build_snapshot(kb_root, fleet_bus, role, *, project="", manager_stale_minute
         )
     } for item in sorted(items, key=lambda item: item["id"])]
     stable = {"role": {k: role[k] for k in ("live", "machine", "session_id")},
-              "tasks": task_facts, "reasons": reasons}
+              "tasks": task_facts, "reason_codes": sorted(reason_codes)}
     fingerprint = hashlib.sha256(
         json.dumps(stable, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     return {
-        **stable, "fingerprint": fingerprint, "active_count": len(items),
+        **stable, "reasons": reasons, "fingerprint": fingerprint, "active_count": len(items),
         "board_age_minutes": board_age, "manager_context": context,
         "worker_contexts": worker_contexts,
     }
@@ -225,11 +233,12 @@ def main():
             print(json.dumps(result, indent=2))
             raise SystemExit(code)
     if not args.dry_run:
+        now = int(time.time())
         save_state(args.state_file, {
             "fingerprint": snapshot["fingerprint"],
-            "last_checked_epoch": int(time.time()),
+            "last_checked_epoch": now,
             "last_nudge_epoch": (
-                int(time.time()) if result["send"] else previous.get("last_nudge_epoch", 0)
+                now if result["send"] or args.prime else previous.get("last_nudge_epoch", 0)
             ),
         })
     print(json.dumps(result, indent=2))
