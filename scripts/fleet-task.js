@@ -133,6 +133,12 @@ function buildClaudeCmd(opts) {
     cmd = `claude -p '${escaped}'`;
   }
 
+  // Cap context per call on every dispatched headless run (2026-09-02, Agentic OS Phase 1).
+  // Without it, Sonnet 5 / Fable sessions auto-compact at ~967k of their 1M window, so a long
+  // fleet task pays for a 500k+ context on every tool call. See the KB technique doc
+  // claude-code-autocompact-window-and-context-per-call.md.
+  cmd += ' --autocompact 150k';
+
   if (opts.json) cmd += ' --output-format json';
   if (opts.tools) {
     // Validate tools against whitelist: only alphanumeric, commas, spaces, hyphens, underscores
